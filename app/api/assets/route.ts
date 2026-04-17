@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAsset, listAssets } from "@/lib/db";
+import { hasMinLength, normalizeText } from "@/lib/validation";
 
 export async function GET() {
   return NextResponse.json({ assets: listAssets() });
@@ -18,31 +19,37 @@ export async function POST(request: Request) {
     status?: string;
   };
 
-  if (
-    !body.name ||
-    !body.provider ||
-    !body.category ||
-    !body.owner ||
-    !body.accessLevel ||
-    !body.contactName ||
-    !body.rule ||
-    !body.lastReview ||
-    !body.status
-  ) {
-    return NextResponse.json({ error: "Ungültige Asset-Daten." }, { status: 400 });
+  const payload = {
+    name: normalizeText(body.name),
+    provider: normalizeText(body.provider),
+    category: normalizeText(body.category),
+    owner: normalizeText(body.owner),
+    accessLevel: normalizeText(body.accessLevel),
+    contactName: normalizeText(body.contactName),
+    rule: normalizeText(body.rule),
+    lastReview: normalizeText(body.lastReview),
+    status: normalizeText(body.status),
+  };
+
+  if (!Object.values(payload).every(Boolean)) {
+    return NextResponse.json({ error: "Bitte alle Pflichtfelder für das Asset ausfüllen." }, { status: 400 });
   }
 
-  const asset = createAsset({
-    name: body.name,
-    provider: body.provider,
-    category: body.category,
-    owner: body.owner,
-    accessLevel: body.accessLevel,
-    contactName: body.contactName,
-    rule: body.rule,
-    lastReview: body.lastReview,
-    status: body.status,
-  });
+  if (!hasMinLength(payload.name, 3) || !hasMinLength(payload.provider, 2)) {
+    return NextResponse.json(
+      { error: "Asset-Bezeichnung und Anbieter müssen aussagekräftig erfasst werden." },
+      { status: 400 },
+    );
+  }
+
+  if (!hasMinLength(payload.rule, 12)) {
+    return NextResponse.json(
+      { error: "Die Freigaberegel muss den Prüf- oder Freigabekontext konkret beschreiben." },
+      { status: 400 },
+    );
+  }
+
+  const asset = createAsset(payload);
 
   return NextResponse.json({ asset }, { status: 201 });
 }

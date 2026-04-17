@@ -14,8 +14,9 @@ import type {
 } from "@/lib/types";
 
 const STORAGE_KEYS = {
-  user: "digitalernachlass-demo-user",
-  session: "digitalernachlass-demo-session",
+  user: "nachlassleitstand-user",
+  session: "nachlassleitstand-session",
+  ui: "nachlassleitstand-ui",
 };
 
 const navItems = [
@@ -25,32 +26,72 @@ const navItems = [
   { id: "contacts", label: "Vertrauenspersonen", short: "04" },
   { id: "requests", label: "Anfragen", short: "05" },
   { id: "workflow", label: "Abläufe", short: "06" },
-  { id: "settings", label: "Einstellungen", short: "07" },
+  { id: "settings", label: "Arbeitsbereich", short: "07" },
 ] as const;
 
-const requestTransitions = [
-  {
-    label: "In juristische Prüfung",
-    status: "In Prüfung",
-    nextStep: "Juristische Zweitprüfung und Dokumentabgleich eingeleitet",
-  },
-  {
-    label: "Freigeben",
-    status: "Freigegeben",
-    nextStep: "Zugriffspaket kann an berechtigte Rolle ausgegeben werden",
-  },
-  {
-    label: "Rückfrage senden",
-    status: "Rückfrage gesendet",
-    nextStep: "Zusätzliche Nachweise wurden beim Antragsteller angefordert",
-  },
-];
+const requestActionMap: Record<
+  string,
+  Array<{ label: string; status: string; nextStep: string; tone?: "primary" | "ghost" }>
+> = {
+  "Neu eingegangen": [
+    {
+      label: "In Prüfung übernehmen",
+      status: "In Prüfung",
+      nextStep: "Formale Prüfung gestartet, Nachweise werden fachlich gegengeprüft.",
+      tone: "primary",
+    },
+    {
+      label: "Rückfrage anfordern",
+      status: "Rückfrage gesendet",
+      nextStep: "Zusätzliche Nachweise oder Präzisierungen wurden angefordert.",
+    },
+  ],
+  "In Prüfung": [
+    {
+      label: "Freigeben",
+      status: "Freigegeben",
+      nextStep: "Vorgang freigegeben, Übergabepaket kann kontrolliert bereitgestellt werden.",
+      tone: "primary",
+    },
+    {
+      label: "Rückfrage senden",
+      status: "Rückfrage gesendet",
+      nextStep: "Prüfung pausiert, ergänzende Unterlagen werden erwartet.",
+    },
+    {
+      label: "Ablehnen",
+      status: "Abgelehnt",
+      nextStep: "Vorgang geschlossen, Freigabe wurde auf Basis der vorliegenden Nachweise verweigert.",
+    },
+  ],
+  "Rückfrage gesendet": [
+    {
+      label: "Erneut prüfen",
+      status: "In Prüfung",
+      nextStep: "Nachgereichte Unterlagen liegen vor und werden erneut geprüft.",
+      tone: "primary",
+    },
+    {
+      label: "Ablehnen",
+      status: "Abgelehnt",
+      nextStep: "Vorgang geschlossen, angeforderte Unterlagen sind ausgeblieben oder nicht ausreichend.",
+    },
+  ],
+};
 
 const defaultAuthFeedback = { message: "", type: "" as "" | "error" | "success" };
+const defaultUiPreferences = { defaultView: "dashboard" as (typeof navItems)[number]["id"] };
 
 function formatNow() {
   return new Intl.DateTimeFormat("de-DE", {
     dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date());
+}
+
+function formatDateLabel() {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "long",
     timeStyle: "short",
   }).format(new Date());
 }
@@ -66,38 +107,104 @@ function initialsFromName(name: string) {
 
 function statusTone(status: string) {
   const value = status.toLowerCase();
-  if (value.includes("frei") || value.includes("aktiv") || value.includes("erledigt") || value.includes("bereit")) {
+  if (
+    value.includes("frei") ||
+    value.includes("aktiv") ||
+    value.includes("erledigt") ||
+    value.includes("bereit") ||
+    value.includes("bestätigt")
+  ) {
     return "positive";
   }
-  if (value.includes("prüfung") || value.includes("arbeit") || value.includes("ausstehend")) {
+  if (
+    value.includes("prüfung") ||
+    value.includes("arbeit") ||
+    value.includes("ausstehend") ||
+    value.includes("neu")
+  ) {
     return "warning";
   }
-  if (value.includes("rückfrage") || value.includes("offen") || value.includes("fällig")) {
+  if (value.includes("rückfrage") || value.includes("offen") || value.includes("fällig") || value.includes("abgelehnt")) {
     return "critical";
   }
   return "neutral";
+}
+
+function requestPriority(request: RequestRecord) {
+  if (request.status === "Neu eingegangen") return "Hoch";
+  if (request.status === "In Prüfung") return "Mittel";
+  if (request.status === "Rückfrage gesendet") return "Wartet auf Antwort";
+  if (request.status === "Abgelehnt") return "Geschlossen";
+  return "Erledigt";
+}
+
+function requestRecommendation(request: RequestRecord) {
+  if (request.status === "Neu eingegangen") {
+    return "Eingang prüfen, Nachweise verifizieren und Zuständigkeit bestätigen.";
+  }
+  if (request.status === "In Prüfung") {
+    return "Juristische oder fachliche Gegenprüfung abschließen und Freigabeentscheidung dokumentieren.";
+  }
+  if (request.status === "Rückfrage gesendet") {
+    return "Wiedervorlage setzen und Nachreichung aktiv nachverfolgen.";
+  }
+  if (request.status === "Abgelehnt") {
+    return "Ablehnungsgrund archivieren und keine Zugriffsrechte ausgeben.";
+  }
+  return "Vorgang ist abgeschlossen und sollte im Export nachvollziehbar bleiben.";
+}
+
+function getRequestActions(status: string) {
+  return requestActionMap[status] ?? [];
+}
+
+function getRequestSortWeight(status: string) {
+  if (status === "Neu eingegangen") return 0;
+  if (status === "In Prüfung") return 1;
+  if (status === "Rückfrage gesendet") return 2;
+  if (status === "Freigegeben") return 3;
+  if (status === "Abgelehnt") return 4;
+  return 5;
+}
+
+function validateEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function validatePhone(value: string) {
+  return /^[+()\d\s/-]{7,24}$/.test(value);
+}
+
+function validatePassword(value: string) {
+  return value.length >= 8 && /\d/.test(value);
+}
+
+function FieldError({ message }: { message?: string }) {
+  return message ? <span className="field-error">{message}</span> : null;
+}
+
+function StatusPill({ children, tone }: { children: string; tone?: string }) {
+  return <span className={`status-pill ${tone ?? statusTone(children)}`}>{children}</span>;
 }
 
 function MetricCard({
   label,
   value,
   detail,
+  tone = "neutral",
 }: {
   label: string;
   value: string | number;
   detail: string;
+  tone?: "neutral" | "positive" | "warning" | "critical";
 }) {
   return (
-    <article className="metric-card">
+    <article className={`metric-card ${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
       <p>{detail}</p>
     </article>
   );
-}
-
-function StatusPill({ children, tone }: { children: string; tone?: string }) {
-  return <span className={`status-pill ${tone ?? statusTone(children)}`}>{children}</span>;
 }
 
 function SectionHeader({
@@ -123,12 +230,42 @@ function SectionHeader({
   );
 }
 
+function EmptyState({
+  title,
+  copy,
+  action,
+}: {
+  title: string;
+  copy: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="empty-state">
+      <strong>{title}</strong>
+      <p>{copy}</p>
+      {action}
+    </div>
+  );
+}
+
+async function readApiMessage(response: Response) {
+  try {
+    const payload = (await response.json()) as { error?: string };
+    return payload.error || "Die Aktion konnte nicht verarbeitet werden.";
+  } catch {
+    return "Die Aktion konnte nicht verarbeitet werden.";
+  }
+}
+
 export default function HomePage() {
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
   const [authFeedback, setAuthFeedback] = useState(defaultAuthFeedback);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<(typeof navItems)[number]["id"]>("dashboard");
+  const [uiPreferences, setUiPreferences] = useState(defaultUiPreferences);
   const [toast, setToast] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -146,7 +283,7 @@ export default function HomePage() {
     provider: "",
     category: "Kommunikation",
     accessLevel: "Nur Executor",
-    contactName: "Anna Weber",
+    contactName: "",
     rule: "",
   });
   const [contactForm, setContactForm] = useState({
@@ -165,15 +302,23 @@ export default function HomePage() {
     summary: "",
   });
   const [requestForm, setRequestForm] = useState({
-    requesterName: "Anna Weber",
-    relation: "Ehepartnerin",
-    scope: "Kommunikation + persönliche Hinweise",
-    evidenceStatus: "Sterbeurkunde liegt vor",
+    requesterName: "",
+    relation: "",
+    scope: "",
+    evidenceStatus: "",
   });
+
+  const [loginErrors, setLoginErrors] = useState<Record<string, string>>({});
+  const [registerErrors, setRegisterErrors] = useState<Record<string, string>>({});
+  const [assetErrors, setAssetErrors] = useState<Record<string, string>>({});
+  const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
+  const [vaultErrors, setVaultErrors] = useState<Record<string, string>>({});
+  const [requestErrors, setRequestErrors] = useState<Record<string, string>>({});
 
   const deferredSearch = useDeferredValue(searchValue.trim().toLowerCase());
 
   async function loadDatabaseData() {
+    setLoadError("");
     const response = await fetch("/api/bootstrap", { cache: "no-store" });
     if (!response.ok) {
       throw new Error("Daten konnten nicht geladen werden.");
@@ -186,11 +331,40 @@ export default function HomePage() {
     setRequests(data.requests);
     setChecklist(data.checklist);
     setActivities(data.activities);
+    setLastSyncedAt(formatDateLabel());
+  }
+
+  function persistUser(user: User) {
+    window.localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
+  }
+
+  function persistSession(user: User) {
+    window.localStorage.setItem(
+      STORAGE_KEYS.session,
+      JSON.stringify({ email: user.email, loggedInAt: new Date().toISOString() }),
+    );
+  }
+
+  function persistUiPreferences(next: typeof defaultUiPreferences) {
+    window.localStorage.setItem(STORAGE_KEYS.ui, JSON.stringify(next));
   }
 
   useEffect(() => {
     const storedUser = window.localStorage.getItem(STORAGE_KEYS.user);
     const storedSession = window.localStorage.getItem(STORAGE_KEYS.session);
+    const storedUi = window.localStorage.getItem(STORAGE_KEYS.ui);
+
+    if (storedUi) {
+      try {
+        const parsedUi = JSON.parse(storedUi) as typeof defaultUiPreferences;
+        if (navItems.some((item) => item.id === parsedUi.defaultView)) {
+          setUiPreferences(parsedUi);
+          setCurrentView(parsedUi.defaultView);
+        }
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEYS.ui);
+      }
+    }
 
     if (storedUser && storedSession) {
       try {
@@ -207,21 +381,41 @@ export default function HomePage() {
 
     loadDatabaseData()
       .catch(() => {
-        setToast("SQLite-Daten konnten nicht geladen werden.");
+        setLoadError("SQLite-Daten konnten nicht geladen werden. Bitte den lokalen Datenbestand prüfen.");
       })
       .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(""), 2800);
+    const timer = window.setTimeout(() => setToast(""), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    persistUiPreferences(uiPreferences);
+  }, [currentUser, uiPreferences]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setUiPreferences((prev) => (prev.defaultView === currentView ? prev : { ...prev, defaultView: currentView }));
+  }, [currentUser, currentView]);
+
+  useEffect(() => {
+    if (!assetForm.contactName && contacts.length > 0) {
+      setAssetForm((prev) => ({ ...prev, contactName: contacts[0].name }));
+    }
+  }, [contacts, assetForm.contactName]);
+
   const completedChecklist = checklist.filter((item) => item.status === "Erledigt").length;
   const readinessScore = checklist.length === 0 ? 0 : Math.round((completedChecklist / checklist.length) * 100);
-  const activeRequests = requests.filter((item) => item.status !== "Freigegeben").length;
-  const protectedAssets = assets.filter((item) => item.status === "Aktiv").length;
+  const activeRequests = requests.filter((item) => !["Freigegeben", "Abgelehnt"].includes(item.status)).length;
+  const activeContacts = contacts.filter((item) => item.status === "Aktiv").length;
+  const urgentChecklist = checklist.filter((item) => item.status !== "Erledigt");
+  const nextChecklistItem = urgentChecklist[0];
+  const reviewDueAssets = assets.filter((item) => item.status.toLowerCase().includes("fällig")).length;
+  const sealedVaultItems = vaultItems.filter((item) => item.status === "Versiegelt").length;
 
   const filteredAssets = deferredSearch
     ? assets.filter((item) =>
@@ -245,27 +439,28 @@ export default function HomePage() {
       )
     : vaultItems;
 
-  const filteredRequests = deferredSearch
-    ? requests.filter((item) =>
-        [item.label, item.requesterName, item.scope, item.status, item.nextStep].some((field) =>
-          field.toLowerCase().includes(deferredSearch),
-        ),
-      )
-    : requests;
+  const filteredRequests = (
+    deferredSearch
+      ? requests.filter((item) =>
+          [item.label, item.requesterName, item.scope, item.status, item.nextStep].some((field) =>
+            field.toLowerCase().includes(deferredSearch),
+          ),
+        )
+      : requests
+  ).slice().sort((left, right) => getRequestSortWeight(left.status) - getRequestSortWeight(right.status));
+
+  const pendingSearchMatches =
+    filteredAssets.length + filteredContacts.length + filteredVaultItems.length + filteredRequests.length;
 
   function showFeedback(message: string, type: "" | "error" | "success" = "") {
     setAuthFeedback({ message, type });
   }
 
-  function persistUser(user: User) {
-    window.localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
-  }
-
-  function persistSession(user: User) {
-    window.localStorage.setItem(
-      STORAGE_KEYS.session,
-      JSON.stringify({ email: user.email, loggedInAt: new Date().toISOString() }),
-    );
+  function clearFormErrors() {
+    setAssetErrors({});
+    setContactErrors({});
+    setVaultErrors({});
+    setRequestErrors({});
   }
 
   function handleRegister(event: FormEvent<HTMLFormElement>) {
@@ -273,9 +468,15 @@ export default function HomePage() {
     const name = registerData.name.trim();
     const email = registerData.email.trim().toLowerCase();
     const password = registerData.password;
+    const nextErrors: Record<string, string> = {};
 
-    if (!name || !email || password.length < 8) {
-      showFeedback("Bitte einen vollständigen Namen, eine gültige E-Mail und ein Passwort mit mindestens 8 Zeichen eingeben.", "error");
+    if (name.length < 3) nextErrors.name = "Bitte den vollständigen Namen angeben.";
+    if (!validateEmail(email)) nextErrors.email = "Bitte eine gültige E-Mail-Adresse verwenden.";
+    if (!validatePassword(password)) nextErrors.password = "Mindestens 8 Zeichen und mindestens eine Ziffer.";
+
+    setRegisterErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      showFeedback("Der Arbeitsbereich konnte noch nicht eingerichtet werden.", "error");
       return;
     }
 
@@ -284,35 +485,50 @@ export default function HomePage() {
     setRegisterData({ name: "", email: "", password: "" });
     setLoginData({ email, password: "" });
     setAuthTab("login");
-    showFeedback("Konto wurde lokal angelegt. Melden Sie sich jetzt mit den hinterlegten Daten an.", "success");
+    showFeedback("Arbeitsbereich lokal eingerichtet. Bitte jetzt mit den hinterlegten Daten anmelden.", "success");
   }
 
   function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    const email = loginData.email.trim().toLowerCase();
+    const password = loginData.password;
     const rawUser = window.localStorage.getItem(STORAGE_KEYS.user);
+
+    if (!validateEmail(email)) nextErrors.email = "Bitte eine gültige E-Mail-Adresse eingeben.";
+    if (!password) nextErrors.password = "Bitte das Passwort eingeben.";
+    setLoginErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      showFeedback("Die Anmeldung ist noch nicht vollständig.", "error");
+      return;
+    }
+
     if (!rawUser) {
       setAuthTab("register");
-      showFeedback("Für diese lokale Demo ist noch kein Konto hinterlegt. Bitte zuerst registrieren.", "error");
+      showFeedback("Dieser lokale Arbeitsbereich wurde noch nicht eingerichtet. Bitte zuerst anlegen.", "error");
       return;
     }
 
     const user = JSON.parse(rawUser) as User;
-    if (user.email !== loginData.email.trim().toLowerCase() || user.password !== loginData.password) {
-      showFeedback("Die Anmeldedaten stimmen nicht überein.", "error");
+    if (user.email !== email || user.password !== password) {
+      showFeedback("Die hinterlegten Zugangsdaten stimmen nicht überein.", "error");
       return;
     }
 
     persistSession(user);
     setCurrentUser(user);
+    setCurrentView(uiPreferences.defaultView);
     setAuthFeedback(defaultAuthFeedback);
     setLoginData({ email: "", password: "" });
-    setToast(`Willkommen zurück, ${user.name}.`);
+    setToast(`Arbeitsbereich geöffnet. Willkommen zurück, ${user.name}.`);
   }
 
   function logout() {
     window.localStorage.removeItem(STORAGE_KEYS.session);
     setCurrentUser(null);
     setCurrentView("dashboard");
+    clearFormErrors();
     setToast("Sitzung wurde beendet.");
   }
 
@@ -328,8 +544,9 @@ export default function HomePage() {
     setIsSubmitting(true);
     try {
       await task();
-    } catch {
-      setToast("Die Aktion konnte nicht verarbeitet werden.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Die Aktion konnte nicht verarbeitet werden.";
+      setToast(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -337,24 +554,31 @@ export default function HomePage() {
 
   async function submitAsset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const payload = {
+      name: assetForm.name.trim(),
+      provider: assetForm.provider.trim(),
+      category: assetForm.category,
+      owner: currentUser?.name ?? "Eigentümer",
+      accessLevel: assetForm.accessLevel,
+      contactName: assetForm.contactName.trim(),
+      rule: assetForm.rule.trim(),
+      lastReview: new Intl.DateTimeFormat("de-DE").format(new Date()),
+      status: "Aktiv",
+    };
+    const nextErrors: Record<string, string> = {};
+
+    if (payload.name.length < 3) nextErrors.name = "Bitte eine präzise Asset-Bezeichnung angeben.";
+    if (payload.provider.length < 2) nextErrors.provider = "Bitte den Anbieter oder das System angeben.";
+    if (payload.contactName.length < 3) nextErrors.contactName = "Bitte eine verantwortliche Person hinterlegen.";
+    if (payload.rule.length < 12) nextErrors.rule = "Die Freigaberegel sollte konkret beschreiben, wann Zugriff zulässig ist.";
+
+    setAssetErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setToast("Das Asset ist noch nicht vollständig beschrieben.");
+      return;
+    }
+
     await withSubmission(async () => {
-      const payload = {
-        name: assetForm.name.trim(),
-        provider: assetForm.provider.trim(),
-        category: assetForm.category,
-        owner: currentUser?.name ?? "Eigentümer",
-        accessLevel: assetForm.accessLevel,
-        contactName: assetForm.contactName.trim(),
-        rule: assetForm.rule.trim(),
-        lastReview: new Intl.DateTimeFormat("de-DE").format(new Date()),
-        status: "Aktiv",
-      };
-
-      if (!payload.name || !payload.provider || !payload.contactName || !payload.rule) {
-        setToast("Bitte Asset, Anbieter, Ansprechpartner und Freigaberegel vollständig erfassen.");
-        return;
-      }
-
       const response = await fetch("/api/assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -362,7 +586,7 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error("asset");
+        throw new Error(await readApiMessage(response));
       }
 
       setAssetForm({
@@ -370,33 +594,42 @@ export default function HomePage() {
         provider: "",
         category: "Kommunikation",
         accessLevel: "Nur Executor",
-        contactName: contacts[0]?.name ?? "Anna Weber",
+        contactName: contacts[0]?.name ?? "",
         rule: "",
       });
-      await syncAfterMutation("Asset wurde in den Nachlassbestand übernommen.", "assets");
+      setAssetErrors({});
+      await syncAfterMutation("Asset wurde in den geschützten Bestand übernommen.", "assets");
     });
   }
 
   async function submitContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const payload = {
+      ...contactForm,
+      name: contactForm.name.trim(),
+      relation: contactForm.relation.trim(),
+      email: contactForm.email.trim().toLowerCase(),
+      phone: contactForm.phone.trim(),
+      scope: contactForm.scope.trim(),
+      verificationStatus: "Einladung vorbereitet",
+      responseExpectation: "Rückmeldung innerhalb von 24 Stunden",
+      status: "Ausstehend",
+    };
+    const nextErrors: Record<string, string> = {};
+
+    if (payload.name.length < 3) nextErrors.name = "Bitte Name und Rolle klar benennen.";
+    if (payload.relation.length < 2) nextErrors.relation = "Bitte die Beziehung oder Funktion angeben.";
+    if (!validateEmail(payload.email)) nextErrors.email = "Bitte eine gültige E-Mail-Adresse verwenden.";
+    if (!validatePhone(payload.phone)) nextErrors.phone = "Bitte eine erreichbare Telefonnummer angeben.";
+    if (payload.scope.length < 10) nextErrors.scope = "Bitte den Zuständigkeitsbereich konkret beschreiben.";
+
+    setContactErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setToast("Die Vertrauensperson ist noch nicht vollständig erfasst.");
+      return;
+    }
+
     await withSubmission(async () => {
-      const payload = {
-        ...contactForm,
-        name: contactForm.name.trim(),
-        relation: contactForm.relation.trim(),
-        email: contactForm.email.trim().toLowerCase(),
-        phone: contactForm.phone.trim(),
-        scope: contactForm.scope.trim(),
-        verificationStatus: "Einladung versendet",
-        responseExpectation: "Reaktion innerhalb von 24 Stunden",
-        status: "Ausstehend",
-      };
-
-      if (!payload.name || !payload.relation || !payload.email || !payload.phone || !payload.scope) {
-        setToast("Bitte Kontakt vollständig mit Rolle, Kontaktkanal und Zuständigkeitsbereich erfassen.");
-        return;
-      }
-
       const response = await fetch("/api/contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -404,7 +637,7 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error("contact");
+        throw new Error(await readApiMessage(response));
       }
 
       setContactForm({
@@ -415,26 +648,34 @@ export default function HomePage() {
         role: "Familienkontakt",
         scope: "",
       });
-      await syncAfterMutation("Vertrauensperson wurde angelegt und zur Bestätigung vorgemerkt.", "contacts");
+      setContactErrors({});
+      await syncAfterMutation("Vertrauensperson angelegt und für die Bestätigung vorgemerkt.", "contacts");
     });
   }
 
   async function submitVaultItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const payload = {
+      ...vaultForm,
+      title: vaultForm.title.trim(),
+      summary: vaultForm.summary.trim(),
+      updatedAt: new Intl.DateTimeFormat("de-DE").format(new Date()),
+      status: "Freigabebereit",
+    };
+    const nextErrors: Record<string, string> = {};
+
+    if (payload.title.length < 3) nextErrors.title = "Bitte einen aussagekräftigen Titel wählen.";
+    if (payload.summary.length < 20) {
+      nextErrors.summary = "Bitte Zweck, Inhalt und Freigabekontext kurz beschreiben.";
+    }
+
+    setVaultErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setToast("Der Tresoreintrag ist noch nicht ausreichend beschrieben.");
+      return;
+    }
+
     await withSubmission(async () => {
-      const payload = {
-        ...vaultForm,
-        title: vaultForm.title.trim(),
-        summary: vaultForm.summary.trim(),
-        updatedAt: new Intl.DateTimeFormat("de-DE").format(new Date()),
-        status: "Freigabebereit",
-      };
-
-      if (!payload.title || !payload.summary) {
-        setToast("Bitte Titel und Kurzbeschreibung für den Tresoreintrag ausfüllen.");
-        return;
-      }
-
       const response = await fetch("/api/vault", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -442,7 +683,7 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error("vault");
+        throw new Error(await readApiMessage(response));
       }
 
       setVaultForm({
@@ -452,29 +693,37 @@ export default function HomePage() {
         retention: "Unbegrenzt",
         summary: "",
       });
+      setVaultErrors({});
       await syncAfterMutation("Tresoreintrag wurde versioniert abgelegt.", "vault");
     });
   }
 
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const payload = {
+      label: `REQ-${new Date().getFullYear()}-${String(requests.length + 105).padStart(3, "0")}`,
+      requesterName: requestForm.requesterName.trim(),
+      relation: requestForm.relation.trim(),
+      scope: requestForm.scope.trim(),
+      evidenceStatus: requestForm.evidenceStatus.trim(),
+      status: "Neu eingegangen",
+      submittedAt: formatNow(),
+      nextStep: "Formale Vollständigkeitsprüfung wurde automatisch gestartet.",
+    };
+    const nextErrors: Record<string, string> = {};
+
+    if (payload.requesterName.length < 3) nextErrors.requesterName = "Bitte den vollständigen Namen angeben.";
+    if (payload.relation.length < 2) nextErrors.relation = "Bitte die Beziehung oder Berechtigung nennen.";
+    if (payload.scope.length < 12) nextErrors.scope = "Bitte den angeforderten Umfang konkret beschreiben.";
+    if (payload.evidenceStatus.length < 6) nextErrors.evidenceStatus = "Bitte den Nachweisstand nachvollziehbar beschreiben.";
+
+    setRequestErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setToast("Die Anfrage ist noch nicht vollständig vorbereitet.");
+      return;
+    }
+
     await withSubmission(async () => {
-      const payload = {
-        label: `REQ-${new Date().getFullYear()}-${String(requests.length + 105).padStart(3, "0")}`,
-        requesterName: requestForm.requesterName.trim(),
-        relation: requestForm.relation.trim(),
-        scope: requestForm.scope.trim(),
-        evidenceStatus: requestForm.evidenceStatus.trim(),
-        status: "Neu eingegangen",
-        submittedAt: formatNow(),
-        nextStep: "Formale Vollständigkeitsprüfung wurde automatisch gestartet",
-      };
-
-      if (!payload.requesterName || !payload.relation || !payload.scope || !payload.evidenceStatus) {
-        setToast("Bitte Antragsteller, Beziehung, Umfang und Nachweisstatus angeben.");
-        return;
-      }
-
       const response = await fetch("/api/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -482,9 +731,16 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error("request");
+        throw new Error(await readApiMessage(response));
       }
 
+      setRequestForm({
+        requesterName: "",
+        relation: "",
+        scope: "",
+        evidenceStatus: "",
+      });
+      setRequestErrors({});
       await syncAfterMutation("Anfrage wurde mit Prüfpfad und Aktivitätsprotokoll angelegt.", "requests");
     });
   }
@@ -498,15 +754,15 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error("request-update");
+        throw new Error(await readApiMessage(response));
       }
 
       await syncAfterMutation("Anfragestatus wurde aktualisiert.", "requests");
     });
   }
 
-  async function toggleChecklistItem(item: ChecklistRecord) {
-    const nextStatus = item.status === "Erledigt" ? "Offen" : "Erledigt";
+  async function cycleChecklistItem(item: ChecklistRecord) {
+    const nextStatus = item.status === "Offen" ? "In Arbeit" : item.status === "In Arbeit" ? "Erledigt" : "Offen";
     await withSubmission(async () => {
       const response = await fetch(`/api/checklist/${item.id}`, {
         method: "PATCH",
@@ -515,10 +771,10 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        throw new Error("checklist");
+        throw new Error(await readApiMessage(response));
       }
 
-      await syncAfterMutation("Bereitschaftsstatus wurde neu berechnet.", "workflow");
+      await syncAfterMutation("Bereitschaftsstatus wurde aktualisiert.", "workflow");
     });
   }
 
@@ -529,24 +785,24 @@ export default function HomePage() {
       return;
     }
 
+    if (filteredRequests.length > 0) {
+      startTransition(() => setCurrentView("requests"));
+      setToast(`${filteredRequests.length} passende Anfragen geöffnet.`);
+      return;
+    }
     if (filteredAssets.length > 0) {
       startTransition(() => setCurrentView("assets"));
-      setToast("Passende Assets geöffnet.");
+      setToast(`${filteredAssets.length} passende Assets geöffnet.`);
       return;
     }
     if (filteredContacts.length > 0) {
       startTransition(() => setCurrentView("contacts"));
-      setToast("Passende Vertrauenspersonen geöffnet.");
+      setToast(`${filteredContacts.length} passende Vertrauenspersonen geöffnet.`);
       return;
     }
     if (filteredVaultItems.length > 0) {
       startTransition(() => setCurrentView("vault"));
-      setToast("Passende Tresoreinträge geöffnet.");
-      return;
-    }
-    if (filteredRequests.length > 0) {
-      startTransition(() => setCurrentView("requests"));
-      setToast("Passende Anfragen geöffnet.");
+      setToast(`${filteredVaultItems.length} passende Tresoreinträge geöffnet.`);
       return;
     }
 
@@ -557,6 +813,7 @@ export default function HomePage() {
     const payload = {
       exportedAt: new Date().toISOString(),
       owner: currentUser?.name ?? "Unbekannt",
+      workspaceView: currentView,
       summary: {
         readinessScore,
         assets: assets.length,
@@ -576,55 +833,87 @@ export default function HomePage() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "nachlass-leitstand-export.json";
+    link.download = "nachlassleitstand-export.json";
     link.click();
     window.URL.revokeObjectURL(url);
     setToast("Lokaler Export wurde als JSON-Datei vorbereitet.");
   }
 
+  const navBadges: Record<(typeof navItems)[number]["id"], string | null> = {
+    dashboard: nextChecklistItem ? "Priorität" : null,
+    assets: reviewDueAssets > 0 ? `${reviewDueAssets} fällig` : null,
+    vault: sealedVaultItems > 0 ? `${sealedVaultItems} versiegelt` : null,
+    contacts: contacts.length ? `${activeContacts}/${contacts.length}` : null,
+    requests: activeRequests > 0 ? `${activeRequests} offen` : null,
+    workflow: urgentChecklist.length ? `${urgentChecklist.length} offen` : null,
+    settings: lastSyncedAt ? "Lokal" : null,
+  };
+
   if (!currentUser) {
+    const hasWorkspace = typeof window !== "undefined" && Boolean(window.localStorage.getItem(STORAGE_KEYS.user));
+
     return (
       <main className="auth-shell">
         <section className="auth-story">
-          <div className="auth-badge">Digitale Nachlassvorsorge</div>
-          <h1>Verlässliche Prozesse für digitale Vermögenswerte, Dokumente und Freigaben.</h1>
+          <div className="auth-badge">Lokaler Nachlassleitstand</div>
+          <h1>Digitale Nachlassverwaltung mit klaren Zuständigkeiten, belastbaren Freigaben und nachvollziehbarer Historie.</h1>
           <p className="subtext">
-            Diese lokale MVP-Version bildet einen glaubwürdigen Leitstand für digitale Nachlassplanung ab: mit Tresor,
-            Vertrauenspersonen, Anfrageprüfung und nachvollziehbarer Aktivitätshistorie.
+            Der Arbeitsbereich läuft lokal mit SQLite und speichert den Zugang im Browser. So bleiben Prozesse,
+            Zuständigkeiten und Dokumentationsstände im Projekt kontrollierbar und ohne externe Abhängigkeiten.
           </p>
 
           <div className="auth-grid">
             <article className="auth-card">
-              <strong>Rechtssichere Struktur</strong>
-              <p>Assets, Rollen, Nachweise und Freigaberegeln werden sauber getrennt dokumentiert.</p>
+              <strong>Verlässlicher Einstieg</strong>
+              <p>Erst den lokalen Arbeitsbereich einrichten, dann mit einer festen verantwortlichen Person starten.</p>
             </article>
             <article className="auth-card">
-              <strong>Lokaler Betrieb</strong>
-              <p>Keine externen Dienste, keine Zugangsschlüssel. Alle Demo-Daten bleiben im Projekt und im Browser.</p>
+              <strong>Kontrollierte Freigaben</strong>
+              <p>Anfragen, Nachweise und nächste Schritte bleiben im gleichen System nachvollziehbar.</p>
             </article>
             <article className="auth-card">
-              <strong>Prüfbare Abläufe</strong>
-              <p>Bereitschafts-Checkliste, Anfrage-Queue und Export machen den Prototyp belastbar für Demos.</p>
+              <strong>Publizierbare Basis</strong>
+              <p>Klare Formulare, Exportfunktion und persistente Daten sorgen für einen belastbaren v1-Stand.</p>
             </article>
+          </div>
+
+          <div className="readiness-rail">
+            <div>
+              <span>1</span>
+              <p>Arbeitsbereich lokal einrichten</p>
+            </div>
+            <div>
+              <span>2</span>
+              <p>Bestand, Rollen und Tresor prüfen</p>
+            </div>
+            <div>
+              <span>3</span>
+              <p>Anfragen kontrolliert bearbeiten</p>
+            </div>
           </div>
         </section>
 
         <section className="auth-panel">
           <div className="auth-panel-head">
-            <p className="eyebrow">Sicherer Zugang</p>
-            <h2>Projektzugang</h2>
-            <p className="section-copy">Anmeldung und Registrierung funktionieren lokal im Browser und personalisieren den Leitstand.</p>
+            <p className="eyebrow">Zugang</p>
+            <h2>{hasWorkspace ? "Arbeitsbereich öffnen" : "Arbeitsbereich einrichten"}</h2>
+            <p className="section-copy">
+              {hasWorkspace
+                ? "Melden Sie sich mit den lokal hinterlegten Zugangsdaten an."
+                : "Legen Sie einmalig eine verantwortliche Person für diesen lokalen Arbeitsbereich an."}
+            </p>
           </div>
 
           <div className="auth-tabs">
-            <button className={`tab-button${authTab === "login" ? " active" : ""}`} onClick={() => setAuthTab("login")}>
+            <button className={`tab-button${authTab === "login" ? " active" : ""}`} onClick={() => setAuthTab("login")} type="button">
               Anmelden
             </button>
             <button
               className={`tab-button${authTab === "register" ? " active" : ""}`}
               onClick={() => setAuthTab("register")}
+              type="button"
             >
-              Registrieren
+              Einrichten
             </button>
           </div>
 
@@ -634,62 +923,82 @@ export default function HomePage() {
               <input
                 type="email"
                 value={loginData.email}
-                onChange={(event) => setLoginData((prev) => ({ ...prev, email: event.target.value }))}
-                placeholder="name@beispiel.de"
+                onChange={(event) => {
+                  setLoginData((prev) => ({ ...prev, email: event.target.value }));
+                  if (loginErrors.email) setLoginErrors((prev) => ({ ...prev, email: "" }));
+                }}
+                placeholder="name@unternehmen.de"
                 required
               />
+              <FieldError message={loginErrors.email} />
             </label>
             <label>
               Passwort
               <input
                 type="password"
                 value={loginData.password}
-                onChange={(event) => setLoginData((prev) => ({ ...prev, password: event.target.value }))}
+                onChange={(event) => {
+                  setLoginData((prev) => ({ ...prev, password: event.target.value }));
+                  if (loginErrors.password) setLoginErrors((prev) => ({ ...prev, password: "" }));
+                }}
                 placeholder="Mindestens 8 Zeichen"
                 required
               />
+              <FieldError message={loginErrors.password} />
             </label>
             <button className="button primary" type="submit">
-              Zugang öffnen
+              Arbeitsbereich öffnen
             </button>
-            <p className="micro-copy">Die Sitzung wird nur lokal gespeichert und kann jederzeit zurückgesetzt werden.</p>
+            <p className="micro-copy">Die Sitzung wird nur lokal im Browser gespeichert und kann jederzeit beendet werden.</p>
           </form>
 
           <form className={`auth-form${authTab === "register" ? " is-visible" : ""}`} onSubmit={handleRegister}>
             <label>
-              Vollständiger Name
+              Verantwortliche Person
               <input
                 type="text"
                 value={registerData.name}
-                onChange={(event) => setRegisterData((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="Max Mustermann"
+                onChange={(event) => {
+                  setRegisterData((prev) => ({ ...prev, name: event.target.value }));
+                  if (registerErrors.name) setRegisterErrors((prev) => ({ ...prev, name: "" }));
+                }}
+                placeholder="Vor- und Nachname"
                 required
               />
+              <FieldError message={registerErrors.name} />
             </label>
             <label>
               E-Mail
               <input
                 type="email"
                 value={registerData.email}
-                onChange={(event) => setRegisterData((prev) => ({ ...prev, email: event.target.value }))}
-                placeholder="name@beispiel.de"
+                onChange={(event) => {
+                  setRegisterData((prev) => ({ ...prev, email: event.target.value }));
+                  if (registerErrors.email) setRegisterErrors((prev) => ({ ...prev, email: "" }));
+                }}
+                placeholder="name@unternehmen.de"
                 required
               />
+              <FieldError message={registerErrors.email} />
             </label>
             <label>
               Passwort
               <input
                 type="password"
                 value={registerData.password}
-                onChange={(event) => setRegisterData((prev) => ({ ...prev, password: event.target.value }))}
-                placeholder="Mindestens 8 Zeichen"
+                onChange={(event) => {
+                  setRegisterData((prev) => ({ ...prev, password: event.target.value }));
+                  if (registerErrors.password) setRegisterErrors((prev) => ({ ...prev, password: "" }));
+                }}
+                placeholder="Mindestens 8 Zeichen und eine Ziffer"
                 required
               />
+              <FieldError message={registerErrors.password} />
             </label>
             <button className="button primary" type="submit">
-              Konto lokal anlegen
+              Lokalen Arbeitsbereich anlegen
             </button>
-            <p className="micro-copy">Die Registrierung dient dem Demo-Zugang und ersetzt kein produktives Identity-System.</p>
+            <p className="micro-copy">Kein externer Identity-Dienst. Zugangsdaten bleiben ausschließlich in diesem Browser gespeichert.</p>
           </form>
 
           <p className={`auth-feedback${authFeedback.type ? ` ${authFeedback.type}` : ""}`}>{authFeedback.message}</p>
@@ -707,14 +1016,17 @@ export default function HomePage() {
           <div className="brand-mark">NL</div>
           <div>
             <p className="brand-kicker">Nachlassleitstand</p>
-            <strong>Akte v1</strong>
+            <strong>Arbeitsbereich v1</strong>
           </div>
         </div>
 
-        <div className="sidebar-card">
+        <div className="sidebar-card emphasis">
           <span>Bereitschaft</span>
           <strong>{readinessScore}% abgesichert</strong>
-          <p>{completedChecklist} von {checklist.length} Kernaufgaben abgeschlossen.</p>
+          <p>
+            {completedChecklist} von {checklist.length} Kernaufgaben sind abgeschlossen.
+          </p>
+          {nextChecklistItem ? <small>Nächster Fokus: {nextChecklistItem.title}</small> : <small>Keine offenen Kernaufgaben.</small>}
         </div>
 
         <nav className="nav">
@@ -723,27 +1035,31 @@ export default function HomePage() {
               key={item.id}
               className={`nav-item${currentView === item.id ? " active" : ""}`}
               onClick={() => startTransition(() => setCurrentView(item.id))}
+              type="button"
             >
               <span>{item.short}</span>
-              <strong>{item.label}</strong>
+              <div>
+                <strong>{item.label}</strong>
+                {navBadges[item.id] ? <small>{navBadges[item.id]}</small> : null}
+              </div>
             </button>
           ))}
         </nav>
 
         <div className="sidebar-footer">
           <p>Lokaler Betrieb mit SQLite</p>
-          <strong>Keine externen Abhängigkeiten</strong>
-          <span>Geeignet für Demo, Validierung und weiteres Produktdesign.</span>
+          <strong>Produktnaher v1-Stand</strong>
+          <span>Keine externen Zugangsdaten, kein Cloud-Zwang, vollständiger JSON-Export.</span>
         </div>
       </aside>
 
       <section className="main">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Seriöse digitale Nachlassverwaltung</p>
-            <h1>Kontrollierte Übergaben statt unstrukturierter Notfallordner.</h1>
+            <p className="eyebrow">Lokale digitale Nachlassverwaltung</p>
+            <h1>Klare Entscheidungen statt verstreuter Notfallinformationen.</h1>
             <p className="section-copy">
-              Der Leitstand bündelt Nachlassvermögen, Vertrauensrollen, Dokumententresor und Freigaben in einem klaren operativen Modell.
+              Assets, Vertrauensrollen, Dokumententresor und Anfragen werden in einem nachvollziehbaren Arbeitsbereich zusammengeführt.
             </p>
           </div>
 
@@ -755,103 +1071,135 @@ export default function HomePage() {
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    openSearchResult();
-                  }
+                  if (event.key === "Enter") openSearchResult();
                 }}
               />
-              <button className="button ghost" onClick={openSearchResult}>
+              <button className="button ghost" onClick={openSearchResult} type="button">
                 Öffnen
               </button>
             </div>
 
             <div className="topbar-actions">
-              <button className="button ghost" onClick={exportWorkspaceSnapshot}>
+              <button className="button ghost" onClick={exportWorkspaceSnapshot} type="button">
                 Export
               </button>
-              <button className="button ghost" onClick={() => startTransition(() => setCurrentView("workflow"))}>
-                Checkliste
+              <button className="button ghost" onClick={() => startTransition(() => setCurrentView("settings"))} type="button">
+                Arbeitsbereich
               </button>
               <div className="profile">
                 <div className="avatar">{initialsFromName(currentUser.name) || "NL"}</div>
                 <div>
                   <strong>{currentUser.name}</strong>
-                  <span>Eigentümer</span>
+                  <span>Verantwortliche Person</span>
                 </div>
               </div>
-              <button className="button ghost" onClick={logout}>
+              <button className="button ghost" onClick={logout} type="button">
                 Abmelden
               </button>
             </div>
           </div>
         </header>
 
-        {isLoading ? (
+        {loadError ? (
+          <section className="loading-panel">
+            <strong>Lokaler Datenbestand nicht erreichbar</strong>
+            <p>{loadError}</p>
+            <button
+              className="button primary"
+              onClick={() => {
+                setIsLoading(true);
+                loadDatabaseData()
+                  .catch(() => setLoadError("SQLite-Daten konnten weiterhin nicht geladen werden."))
+                  .finally(() => setIsLoading(false));
+              }}
+              type="button"
+            >
+              Erneut laden
+            </button>
+          </section>
+        ) : isLoading ? (
           <section className="loading-panel">
             <p>Datenbestand wird geladen...</p>
           </section>
         ) : (
           <div className="content">
+            <section className="context-strip">
+              <div>
+                <strong>Letzte Synchronisierung</strong>
+                <span>{lastSyncedAt}</span>
+              </div>
+              <div>
+                <strong>Suchtreffer</strong>
+                <span>{deferredSearch ? `${pendingSearchMatches} Treffer` : "Keine aktive Suche"}</span>
+              </div>
+              <div>
+                <strong>Offene Anfragen</strong>
+                <span>{activeRequests}</span>
+              </div>
+            </section>
+
             {currentView === "dashboard" && (
               <>
                 <section className="hero">
                   <div>
-                    <p className="eyebrow">MVP Fokus</p>
-                    <h2>Der operative Stand ist nachvollziehbar und vorzeigbar.</h2>
+                    <p className="eyebrow">Nächster sinnvoller Schritt</p>
+                    <h2>{nextChecklistItem ? nextChecklistItem.title : "Arbeitsbereich ist aktuell stabil organisiert."}</h2>
                     <p className="section-copy">
-                      Vermögenswerte, Zuständigkeiten und Freigaben werden nicht nur aufgelistet, sondern in einem klaren Prüf- und Übergabekontext dargestellt.
+                      {nextChecklistItem
+                        ? `${nextChecklistItem.owner} ist verantwortlich. Zieltermin: ${nextChecklistItem.dueLabel}.`
+                        : "Alle Kernaufgaben sind abgeschlossen. Nutzen Sie Export und Freigabe-Queue für den operativen Betrieb."}
                     </p>
                   </div>
                   <div className="hero-actions">
-                    <button className="button primary" onClick={() => startTransition(() => setCurrentView("requests"))}>
-                      Anfrage prüfen
+                    <button className="button primary" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
+                      Freigaben steuern
                     </button>
-                    <button className="button ghost" onClick={() => startTransition(() => setCurrentView("vault"))}>
-                      Tresor pflegen
+                    <button className="button ghost" onClick={() => startTransition(() => setCurrentView("workflow"))} type="button">
+                      Aufgaben prüfen
                     </button>
                   </div>
                 </section>
 
                 <section className="metric-grid">
-                  <MetricCard label="Aktive Assets" value={assets.length} detail={`${protectedAssets} Einträge sind aktuell freigabebereit.`} />
-                  <MetricCard label="Vertrauensrollen" value={contacts.length} detail={`${contacts.filter((item) => item.status === "Aktiv").length} Kontakte sind bestätigt.`} />
-                  <MetricCard label="Tresoreinträge" value={vaultItems.length} detail={`${vaultItems.filter((item) => item.status === "Freigabebereit").length} Inhalte warten auf definierte Ausgabe.`} />
-                  <MetricCard label="Offene Vorgänge" value={activeRequests} detail="Anfragen mit Bedarf für Prüfung, Rückfrage oder Übergabe." />
+                  <MetricCard label="Bereitschaft" value={`${readinessScore}%`} detail="Abgeleitet aus Checkliste, Rollenabdeckung und aktuellen Ständen." tone={readinessScore >= 75 ? "positive" : readinessScore >= 50 ? "warning" : "critical"} />
+                  <MetricCard label="Offene Anfragen" value={activeRequests} detail="Vorgänge mit Bedarf für Prüfung, Rückfrage oder Freigabe." tone={activeRequests > 0 ? "warning" : "positive"} />
+                  <MetricCard label="Bestätigte Vertrauensrollen" value={`${activeContacts}/${contacts.length}`} detail="Nur bestätigte Rollen sollten später operative Zugriffe erhalten." tone={activeContacts === contacts.length ? "positive" : "warning"} />
+                  <MetricCard label="Review fällige Assets" value={reviewDueAssets} detail="Einträge mit überfälligem Prüf- oder Aktualisierungsbedarf." tone={reviewDueAssets > 0 ? "critical" : "positive"} />
                 </section>
 
                 <section className="dashboard-grid">
                   <article className="panel large">
                     <div className="panel-head">
-                      <h3>Bereitschaft und Risikobild</h3>
-                      <StatusPill tone={readinessScore >= 75 ? "positive" : readinessScore >= 50 ? "warning" : "critical"}>
-                        {readinessScore >= 75 ? "Stabil" : readinessScore >= 50 ? "Teilweise abgesichert" : "Kritische Lücken"}
+                      <h3>Operative Prioritäten</h3>
+                      <StatusPill tone={readinessScore >= 75 ? "positive" : "warning"}>
+                        {readinessScore >= 75 ? "Stabil" : "Aufmerksamkeit erforderlich"}
                       </StatusPill>
                     </div>
-                    <div className="progress-block">
-                      <div className="progress-track">
-                        <div className="progress-bar" style={{ width: `${readinessScore}%` }} />
-                      </div>
-                      <div className="progress-meta">
-                        <strong>{readinessScore}%</strong>
-                        <span>Bereitschaftsgrad aus Aufgabenstatus, Rollenabdeckung und aktualisierten Tresoreinträgen.</span>
-                      </div>
-                    </div>
-                    <div className="insight-grid">
-                      <div className="insight-card">
-                        <span>Höchste Priorität</span>
-                        <strong>{checklist.find((item) => item.status !== "Erledigt")?.title ?? "Keine offenen Kernaufgaben"}</strong>
-                        <p>Diese Aufgabe blockiert den Übergang vom guten Prototyp zur belastbaren Vorsorgeakte.</p>
-                      </div>
-                      <div className="insight-card">
-                        <span>Rechtliche Prüfung</span>
-                        <strong>{requests.filter((item) => item.status === "In Prüfung").length} Vorgänge</strong>
-                        <p>Prüfpfade mit Nachweisstatus und nächstem Schritt sind im Anfragebereich direkt steuerbar.</p>
-                      </div>
-                      <div className="insight-card">
-                        <span>Kontaktsicherheit</span>
-                        <strong>{contacts.filter((item) => item.status === "Aktiv").length}/{contacts.length} bestätigt</strong>
-                        <p>Vertrauenspersonen werden mit Rolle, Reichweite und Reaktionsanforderung geführt.</p>
-                      </div>
+                    <div className="priority-grid">
+                      <article className="priority-card">
+                        <span>Kritischster Punkt</span>
+                        <strong>{nextChecklistItem?.title ?? "Keine offenen Kernaufgaben"}</strong>
+                        <p>Die Checkliste steuert den Reifegrad des gesamten Arbeitsbereichs.</p>
+                        <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("workflow"))} type="button">
+                          Zur Checkliste
+                        </button>
+                      </article>
+                      <article className="priority-card">
+                        <span>Freigabe-Queue</span>
+                        <strong>{activeRequests} aktive Vorgänge</strong>
+                        <p>Neue oder laufende Vorgänge sollten täglich gesichtet und triagiert werden.</p>
+                        <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
+                          Queue öffnen
+                        </button>
+                      </article>
+                      <article className="priority-card">
+                        <span>Bestandsqualität</span>
+                        <strong>{assets.length} Assets dokumentiert</strong>
+                        <p>Freigaben sind nur belastbar, wenn Asset-Bestand und Verantwortlichkeiten sauber gepflegt bleiben.</p>
+                        <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("assets"))} type="button">
+                          Assets prüfen
+                        </button>
+                      </article>
                     </div>
                   </article>
 
@@ -861,16 +1209,20 @@ export default function HomePage() {
                       <StatusPill tone="neutral">Auditfähig</StatusPill>
                     </div>
                     <div className="activity-list">
-                      {activities.map((activity) => (
-                        <div key={activity.id} className="activity-item">
-                          <div className={`activity-dot ${activity.kind}`}></div>
-                          <div>
-                            <strong>{activity.title}</strong>
-                            <p>{activity.detail}</p>
-                            <span>{activity.createdAt}</span>
+                      {activities.length === 0 ? (
+                        <EmptyState title="Noch keine Aktivität" copy="Sobald Daten geändert werden, erscheint hier die jüngste Historie." />
+                      ) : (
+                        activities.map((activity) => (
+                          <div key={activity.id} className="activity-item">
+                            <div className={`activity-dot ${activity.kind}`}></div>
+                            <div>
+                              <strong>{activity.title}</strong>
+                              <p>{activity.detail}</p>
+                              <span>{activity.createdAt}</span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </article>
                 </section>
@@ -878,8 +1230,8 @@ export default function HomePage() {
                 <section className="dashboard-grid lower">
                   <article className="panel">
                     <div className="panel-head">
-                      <h3>Schützenswerte Assets</h3>
-                      <button className="text-button" onClick={() => startTransition(() => setCurrentView("assets"))}>
+                      <h3>Aktive Assets</h3>
+                      <button className="text-button" onClick={() => startTransition(() => setCurrentView("assets"))} type="button">
                         Asset-Bestand öffnen
                       </button>
                     </div>
@@ -903,13 +1255,13 @@ export default function HomePage() {
 
                   <article className="panel">
                     <div className="panel-head">
-                      <h3>Offene Freigaben</h3>
-                      <button className="text-button" onClick={() => startTransition(() => setCurrentView("requests"))}>
-                        Queue öffnen
+                      <h3>Freigabe-Queue</h3>
+                      <button className="text-button" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
+                        Vorgänge öffnen
                       </button>
                     </div>
                     <div className="list-stack">
-                      {requests.slice(0, 4).map((request) => (
+                      {filteredRequests.slice(0, 4).map((request) => (
                         <div key={request.id} className="list-row">
                           <div>
                             <strong>{request.label}</strong>
@@ -919,7 +1271,7 @@ export default function HomePage() {
                           </div>
                           <div className="list-row-side">
                             <StatusPill>{request.status}</StatusPill>
-                            <span>{request.submittedAt}</span>
+                            <span>{requestPriority(request)}</span>
                           </div>
                         </div>
                       ))}
@@ -935,32 +1287,37 @@ export default function HomePage() {
                   <SectionHeader
                     eyebrow="Asset Register"
                     title="Digitale Vermögenswerte strukturiert erfassen"
-                    copy="Jedes Asset erhält einen verantwortlichen Kontakt, eine Zugriffsebene und eine präzise Freigaberegel."
+                    copy="Jedes Asset erhält Verantwortlichkeit, Zugriffsebene und eine belastbare Freigaberegel."
                   />
                   <form className="stack-form" onSubmit={submitAsset}>
                     <label>
                       Asset-Bezeichnung
                       <input
                         value={assetForm.name}
-                        onChange={(event) => setAssetForm((prev) => ({ ...prev, name: event.target.value }))}
+                        onChange={(event) => {
+                          setAssetForm((prev) => ({ ...prev, name: event.target.value }));
+                          if (assetErrors.name) setAssetErrors((prev) => ({ ...prev, name: "" }));
+                        }}
                         placeholder="z. B. Primäres E-Mail-Konto"
                       />
+                      <FieldError message={assetErrors.name} />
                     </label>
                     <label>
                       Anbieter / System
                       <input
                         value={assetForm.provider}
-                        onChange={(event) => setAssetForm((prev) => ({ ...prev, provider: event.target.value }))}
+                        onChange={(event) => {
+                          setAssetForm((prev) => ({ ...prev, provider: event.target.value }));
+                          if (assetErrors.provider) setAssetErrors((prev) => ({ ...prev, provider: "" }));
+                        }}
                         placeholder="z. B. Google Workspace"
                       />
+                      <FieldError message={assetErrors.provider} />
                     </label>
                     <div className="form-split">
                       <label>
                         Kategorie
-                        <select
-                          value={assetForm.category}
-                          onChange={(event) => setAssetForm((prev) => ({ ...prev, category: event.target.value }))}
-                        >
+                        <select value={assetForm.category} onChange={(event) => setAssetForm((prev) => ({ ...prev, category: event.target.value }))}>
                           <option>Kommunikation</option>
                           <option>Finanzen</option>
                           <option>Geräte</option>
@@ -970,10 +1327,7 @@ export default function HomePage() {
                       </label>
                       <label>
                         Zugriffsebene
-                        <select
-                          value={assetForm.accessLevel}
-                          onChange={(event) => setAssetForm((prev) => ({ ...prev, accessLevel: event.target.value }))}
-                        >
+                        <select value={assetForm.accessLevel} onChange={(event) => setAssetForm((prev) => ({ ...prev, accessLevel: event.target.value }))}>
                           <option>Nur Executor</option>
                           <option>Executor + Rechtsbeistand</option>
                           <option>Familie nach Prüfung</option>
@@ -985,17 +1339,25 @@ export default function HomePage() {
                       Verantwortliche Person
                       <input
                         value={assetForm.contactName}
-                        onChange={(event) => setAssetForm((prev) => ({ ...prev, contactName: event.target.value }))}
+                        onChange={(event) => {
+                          setAssetForm((prev) => ({ ...prev, contactName: event.target.value }));
+                          if (assetErrors.contactName) setAssetErrors((prev) => ({ ...prev, contactName: "" }));
+                        }}
                         placeholder="z. B. Anna Weber"
                       />
+                      <FieldError message={assetErrors.contactName} />
                     </label>
                     <label>
                       Freigaberegel
                       <textarea
                         value={assetForm.rule}
-                        onChange={(event) => setAssetForm((prev) => ({ ...prev, rule: event.target.value }))}
-                        placeholder="Beschreiben Sie, wann und unter welchen Nachweisen dieses Asset freigegeben werden darf."
+                        onChange={(event) => {
+                          setAssetForm((prev) => ({ ...prev, rule: event.target.value }));
+                          if (assetErrors.rule) setAssetErrors((prev) => ({ ...prev, rule: "" }));
+                        }}
+                        placeholder="Beschreiben Sie Nachweise, Prüfschritte und Grenzen der Freigabe."
                       />
+                      <FieldError message={assetErrors.rule} />
                     </label>
                     <button className="button primary" type="submit">
                       Asset anlegen
@@ -1007,41 +1369,46 @@ export default function HomePage() {
                   <SectionHeader
                     eyebrow="Asset Bestand"
                     title="Register mit operativem Kontext"
-                    copy="Suche filtert direkt über System, Kategorie, Zuständigkeit und Freigaberegel."
+                    copy="Suche filtert direkt nach System, Kategorie, Zuständigkeit und Freigaberegel."
+                    actions={<StatusPill tone={reviewDueAssets > 0 ? "critical" : "positive"}>{reviewDueAssets > 0 ? `${reviewDueAssets} Reviews fällig` : "Bestand aktuell"}</StatusPill>}
                   />
-                  <div className="table-shell">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Asset</th>
-                          <th>Anbieter</th>
-                          <th>Zuständigkeit</th>
-                          <th>Regel</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAssets.map((asset) => (
-                          <tr key={asset.id}>
-                            <td>
-                              <strong>{asset.name}</strong>
-                              <span>{asset.category}</span>
-                            </td>
-                            <td>{asset.provider}</td>
-                            <td>
-                              <strong>{asset.contactName}</strong>
-                              <span>{asset.accessLevel}</span>
-                            </td>
-                            <td>{asset.rule}</td>
-                            <td>
-                              <StatusPill>{asset.status}</StatusPill>
-                              <span>{asset.lastReview}</span>
-                            </td>
+                  {filteredAssets.length === 0 ? (
+                    <EmptyState title="Keine Assets gefunden" copy="Passen Sie die Suche an oder legen Sie ein neues Asset an." />
+                  ) : (
+                    <div className="table-shell">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Asset</th>
+                            <th>Anbieter</th>
+                            <th>Zuständigkeit</th>
+                            <th>Freigaberegel</th>
+                            <th>Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {filteredAssets.map((asset) => (
+                            <tr key={asset.id}>
+                              <td>
+                                <strong>{asset.name}</strong>
+                                <span>{asset.category}</span>
+                              </td>
+                              <td>{asset.provider}</td>
+                              <td>
+                                <strong>{asset.contactName}</strong>
+                                <span>{asset.accessLevel}</span>
+                              </td>
+                              <td>{asset.rule}</td>
+                              <td>
+                                <StatusPill>{asset.status}</StatusPill>
+                                <span>{asset.lastReview}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </article>
               </section>
             )}
@@ -1052,24 +1419,25 @@ export default function HomePage() {
                   <SectionHeader
                     eyebrow="Sicherer Tresor"
                     title="Dokumente mit Zielgruppe und Aufbewahrung führen"
-                    copy="Der Tresor verwaltet nicht nur Dateinamen, sondern Sichtbarkeit, Haltedauer und inhaltliche Kurzbeschreibung."
+                    copy="Der Tresor dokumentiert Sichtbarkeit, Haltedauer und den Zweck des Inhalts."
                   />
                   <form className="stack-form" onSubmit={submitVaultItem}>
                     <label>
                       Titel
                       <input
                         value={vaultForm.title}
-                        onChange={(event) => setVaultForm((prev) => ({ ...prev, title: event.target.value }))}
+                        onChange={(event) => {
+                          setVaultForm((prev) => ({ ...prev, title: event.target.value }));
+                          if (vaultErrors.title) setVaultErrors((prev) => ({ ...prev, title: "" }));
+                        }}
                         placeholder="z. B. Zugangspaket für Hosting"
                       />
+                      <FieldError message={vaultErrors.title} />
                     </label>
                     <div className="form-split">
                       <label>
                         Kategorie
-                        <select
-                          value={vaultForm.category}
-                          onChange={(event) => setVaultForm((prev) => ({ ...prev, category: event.target.value }))}
-                        >
+                        <select value={vaultForm.category} onChange={(event) => setVaultForm((prev) => ({ ...prev, category: event.target.value }))}>
                           <option>Persönlich</option>
                           <option>Recht</option>
                           <option>Betrieb</option>
@@ -1078,10 +1446,7 @@ export default function HomePage() {
                       </label>
                       <label>
                         Sichtbarkeit
-                        <select
-                          value={vaultForm.visibility}
-                          onChange={(event) => setVaultForm((prev) => ({ ...prev, visibility: event.target.value }))}
-                        >
+                        <select value={vaultForm.visibility} onChange={(event) => setVaultForm((prev) => ({ ...prev, visibility: event.target.value }))}>
                           <option>Familie nach Prüfung</option>
                           <option>Nur Executor</option>
                           <option>Continuity-Team</option>
@@ -1091,10 +1456,7 @@ export default function HomePage() {
                     </div>
                     <label>
                       Aufbewahrung
-                      <select
-                        value={vaultForm.retention}
-                        onChange={(event) => setVaultForm((prev) => ({ ...prev, retention: event.target.value }))}
-                      >
+                      <select value={vaultForm.retention} onChange={(event) => setVaultForm((prev) => ({ ...prev, retention: event.target.value }))}>
                         <option>Unbegrenzt</option>
                         <option>36 Monate</option>
                         <option>10 Jahre</option>
@@ -1105,9 +1467,13 @@ export default function HomePage() {
                       Kurzbeschreibung
                       <textarea
                         value={vaultForm.summary}
-                        onChange={(event) => setVaultForm((prev) => ({ ...prev, summary: event.target.value }))}
-                        placeholder="Welche Inhalte enthält der Eintrag und wann wird er gebraucht?"
+                        onChange={(event) => {
+                          setVaultForm((prev) => ({ ...prev, summary: event.target.value }));
+                          if (vaultErrors.summary) setVaultErrors((prev) => ({ ...prev, summary: "" }));
+                        }}
+                        placeholder="Welche Inhalte sind enthalten und wann soll das Paket freigegeben werden?"
                       />
+                      <FieldError message={vaultErrors.summary} />
                     </label>
                     <button className="button primary" type="submit">
                       Tresoreintrag speichern
@@ -1119,27 +1485,31 @@ export default function HomePage() {
                   <SectionHeader
                     eyebrow="Tresorbestand"
                     title="Versionierte Informationspakete"
-                    copy="Geeignet für rechtliche Dokumente, persönliche Nachrichten und betriebliche Übergabepakete."
+                    copy="Geeignet für rechtliche Dokumente, persönliche Nachrichten und betriebliche Übergaben."
                   />
-                  <div className="card-grid">
-                    {filteredVaultItems.map((item) => (
-                      <article key={item.id} className="document-card">
-                        <div className="panel-head">
-                          <div>
-                            <h3>{item.title}</h3>
-                            <p>{item.category}</p>
+                  {filteredVaultItems.length === 0 ? (
+                    <EmptyState title="Keine Tresoreinträge gefunden" copy="Passen Sie die Suche an oder legen Sie ein neues Paket an." />
+                  ) : (
+                    <div className="card-grid">
+                      {filteredVaultItems.map((item) => (
+                        <article key={item.id} className="document-card">
+                          <div className="panel-head">
+                            <div>
+                              <h3>{item.title}</h3>
+                              <p>{item.category}</p>
+                            </div>
+                            <StatusPill>{item.status}</StatusPill>
                           </div>
-                          <StatusPill>{item.status}</StatusPill>
-                        </div>
-                        <p>{item.summary}</p>
-                        <div className="document-meta">
-                          <span>{item.visibility}</span>
-                          <span>{item.retention}</span>
-                          <span>Stand {item.updatedAt}</span>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
+                          <p>{item.summary}</p>
+                          <div className="document-meta">
+                            <span>{item.visibility}</span>
+                            <span>{item.retention}</span>
+                            <span>Stand {item.updatedAt}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </article>
               </section>
             )}
@@ -1150,32 +1520,37 @@ export default function HomePage() {
                   <SectionHeader
                     eyebrow="Rollenmodell"
                     title="Vertrauenspersonen mit Reichweite und Erwartung pflegen"
-                    copy="Kontakte werden nach Rolle, Verantwortungsbereich und Verifizierungsstatus geführt."
+                    copy="Kontakte werden nach Rolle, Reaktionsfähigkeit und Zuständigkeitsbereich geführt."
                   />
                   <form className="stack-form" onSubmit={submitContact}>
                     <label>
                       Name
                       <input
                         value={contactForm.name}
-                        onChange={(event) => setContactForm((prev) => ({ ...prev, name: event.target.value }))}
+                        onChange={(event) => {
+                          setContactForm((prev) => ({ ...prev, name: event.target.value }));
+                          if (contactErrors.name) setContactErrors((prev) => ({ ...prev, name: "" }));
+                        }}
                         placeholder="z. B. Dr. Lena Vogt"
                       />
+                      <FieldError message={contactErrors.name} />
                     </label>
                     <div className="form-split">
                       <label>
-                        Beziehung
+                        Beziehung / Funktion
                         <input
                           value={contactForm.relation}
-                          onChange={(event) => setContactForm((prev) => ({ ...prev, relation: event.target.value }))}
+                          onChange={(event) => {
+                            setContactForm((prev) => ({ ...prev, relation: event.target.value }));
+                            if (contactErrors.relation) setContactErrors((prev) => ({ ...prev, relation: "" }));
+                          }}
                           placeholder="z. B. Rechtsbeistand"
                         />
+                        <FieldError message={contactErrors.relation} />
                       </label>
                       <label>
                         Rolle
-                        <select
-                          value={contactForm.role}
-                          onChange={(event) => setContactForm((prev) => ({ ...prev, role: event.target.value }))}
-                        >
+                        <select value={contactForm.role} onChange={(event) => setContactForm((prev) => ({ ...prev, role: event.target.value }))}>
                           <option>Familienkontakt</option>
                           <option>Hauptexecutorin</option>
                           <option>Rechtliche Freigabe</option>
@@ -1189,26 +1564,38 @@ export default function HomePage() {
                         <input
                           type="email"
                           value={contactForm.email}
-                          onChange={(event) => setContactForm((prev) => ({ ...prev, email: event.target.value }))}
+                          onChange={(event) => {
+                            setContactForm((prev) => ({ ...prev, email: event.target.value }));
+                            if (contactErrors.email) setContactErrors((prev) => ({ ...prev, email: "" }));
+                          }}
                           placeholder="name@beispiel.de"
                         />
+                        <FieldError message={contactErrors.email} />
                       </label>
                       <label>
                         Telefon
                         <input
                           value={contactForm.phone}
-                          onChange={(event) => setContactForm((prev) => ({ ...prev, phone: event.target.value }))}
+                          onChange={(event) => {
+                            setContactForm((prev) => ({ ...prev, phone: event.target.value }));
+                            if (contactErrors.phone) setContactErrors((prev) => ({ ...prev, phone: "" }));
+                          }}
                           placeholder="+49 ..."
                         />
+                        <FieldError message={contactErrors.phone} />
                       </label>
                     </div>
                     <label>
                       Zuständigkeitsbereich
                       <textarea
                         value={contactForm.scope}
-                        onChange={(event) => setContactForm((prev) => ({ ...prev, scope: event.target.value }))}
+                        onChange={(event) => {
+                          setContactForm((prev) => ({ ...prev, scope: event.target.value }));
+                          if (contactErrors.scope) setContactErrors((prev) => ({ ...prev, scope: "" }));
+                        }}
                         placeholder="Welche Assets, Dokumente oder Aufgaben umfasst diese Rolle?"
                       />
+                      <FieldError message={contactErrors.scope} />
                     </label>
                     <button className="button primary" type="submit">
                       Vertrauensperson anlegen
@@ -1219,45 +1606,54 @@ export default function HomePage() {
                 <article className="panel">
                   <SectionHeader
                     eyebrow="Kontaktliste"
-                    title="Bestätigte Rollen und ausstehende Einladungen"
-                    copy="Die Übersicht fokussiert auf Reaktionsfähigkeit und fachliche Reichweite."
+                    title="Bestätigte Rollen und ausstehende Freigaben"
+                    copy="Die Übersicht fokussiert auf Reaktionsfähigkeit, Reichweite und Verifikationsstand."
+                    actions={
+                      <StatusPill tone={activeContacts === contacts.length ? "positive" : "warning"}>
+                        {`${activeContacts} aktiv`}
+                      </StatusPill>
+                    }
                   />
-                  <div className="card-grid">
-                    {filteredContacts.map((contact) => (
-                      <article key={contact.id} className="contact-card">
-                        <div className="contact-head">
-                          <div className="avatar small">{initialsFromName(contact.name)}</div>
-                          <div>
-                            <h3>{contact.name}</h3>
-                            <p>{contact.relation}</p>
+                  {filteredContacts.length === 0 ? (
+                    <EmptyState title="Keine Kontakte gefunden" copy="Passen Sie die Suche an oder legen Sie eine Vertrauensperson an." />
+                  ) : (
+                    <div className="card-grid">
+                      {filteredContacts.map((contact) => (
+                        <article key={contact.id} className="contact-card">
+                          <div className="contact-head">
+                            <div className="avatar small">{initialsFromName(contact.name)}</div>
+                            <div>
+                              <h3>{contact.name}</h3>
+                              <p>{contact.relation}</p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="detail-grid">
-                          <div>
-                            <span>Rolle</span>
-                            <strong>{contact.role}</strong>
+                          <div className="detail-grid">
+                            <div>
+                              <span>Rolle</span>
+                              <strong>{contact.role}</strong>
+                            </div>
+                            <div>
+                              <span>Status</span>
+                              <StatusPill>{contact.status}</StatusPill>
+                            </div>
+                            <div>
+                              <span>Verifikation</span>
+                              <strong>{contact.verificationStatus}</strong>
+                            </div>
+                            <div>
+                              <span>Reaktionszeit</span>
+                              <strong>{contact.responseExpectation}</strong>
+                            </div>
                           </div>
-                          <div>
-                            <span>Status</span>
-                            <StatusPill>{contact.status}</StatusPill>
+                          <p className="contact-scope">{contact.scope}</p>
+                          <div className="contact-meta">
+                            <span>{contact.email}</span>
+                            <span>{contact.phone}</span>
                           </div>
-                          <div>
-                            <span>Verifikation</span>
-                            <strong>{contact.verificationStatus}</strong>
-                          </div>
-                          <div>
-                            <span>Reaktionszeit</span>
-                            <strong>{contact.responseExpectation}</strong>
-                          </div>
-                        </div>
-                        <p className="contact-scope">{contact.scope}</p>
-                        <div className="contact-meta">
-                          <span>{contact.email}</span>
-                          <span>{contact.phone}</span>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </article>
               </section>
             )}
@@ -1267,43 +1663,62 @@ export default function HomePage() {
                 <article className="panel sticky">
                   <SectionHeader
                     eyebrow="Freigabeprozess"
-                    title="Anfrage mit Nachweisstatus anlegen"
-                    copy="Für Demos lässt sich der gesamte Eingangspfad realistisch simulieren und anschließend weitertriagieren."
+                    title="Anfrage vollständig anlegen"
+                    copy="Jeder Vorgang startet mit Antragsteller, Nachweisstatus und einem klaren Umfang."
                   />
                   <form className="stack-form" onSubmit={submitRequest}>
                     <label>
                       Antragsteller
                       <input
                         value={requestForm.requesterName}
-                        onChange={(event) => setRequestForm((prev) => ({ ...prev, requesterName: event.target.value }))}
+                        onChange={(event) => {
+                          setRequestForm((prev) => ({ ...prev, requesterName: event.target.value }));
+                          if (requestErrors.requesterName) setRequestErrors((prev) => ({ ...prev, requesterName: "" }));
+                        }}
+                        placeholder="Vor- und Nachname"
                       />
+                      <FieldError message={requestErrors.requesterName} />
                     </label>
                     <div className="form-split">
                       <label>
-                        Beziehung
+                        Beziehung / Berechtigung
                         <input
                           value={requestForm.relation}
-                          onChange={(event) => setRequestForm((prev) => ({ ...prev, relation: event.target.value }))}
+                          onChange={(event) => {
+                            setRequestForm((prev) => ({ ...prev, relation: event.target.value }));
+                            if (requestErrors.relation) setRequestErrors((prev) => ({ ...prev, relation: "" }));
+                          }}
+                          placeholder="z. B. Ehepartnerin"
                         />
+                        <FieldError message={requestErrors.relation} />
                       </label>
                       <label>
                         Nachweisstatus
                         <input
                           value={requestForm.evidenceStatus}
-                          onChange={(event) => setRequestForm((prev) => ({ ...prev, evidenceStatus: event.target.value }))}
+                          onChange={(event) => {
+                            setRequestForm((prev) => ({ ...prev, evidenceStatus: event.target.value }));
+                            if (requestErrors.evidenceStatus) setRequestErrors((prev) => ({ ...prev, evidenceStatus: "" }));
+                          }}
+                          placeholder="z. B. Sterbeurkunde liegt vor"
                         />
+                        <FieldError message={requestErrors.evidenceStatus} />
                       </label>
                     </div>
                     <label>
                       Angeforderter Umfang
                       <textarea
                         value={requestForm.scope}
-                        onChange={(event) => setRequestForm((prev) => ({ ...prev, scope: event.target.value }))}
+                        onChange={(event) => {
+                          setRequestForm((prev) => ({ ...prev, scope: event.target.value }));
+                          if (requestErrors.scope) setRequestErrors((prev) => ({ ...prev, scope: "" }));
+                        }}
                         placeholder="Welche Inhalte oder Zugänge sollen geprüft werden?"
                       />
+                      <FieldError message={requestErrors.scope} />
                     </label>
                     <button className="button primary" type="submit">
-                      Anfrage erzeugen
+                      Anfrage anlegen
                     </button>
                   </form>
                 </article>
@@ -1311,53 +1726,75 @@ export default function HomePage() {
                 <article className="panel">
                   <SectionHeader
                     eyebrow="Prüf-Queue"
-                    title="Vorgänge mit nächstem Schritt"
-                    copy="Jeder Eintrag enthält Antragsteller, Scope, Nachweisstand und eine direkte Triage-Option."
+                    title="Vorgänge mit klarer Triage"
+                    copy="Statuswechsel stehen nur dort zur Verfügung, wo sie fachlich Sinn ergeben."
                   />
-                  <div className="request-stack">
-                    {filteredRequests.map((request) => (
-                      <article key={request.id} className="request-card">
-                        <div className="panel-head">
-                          <div>
-                            <h3>{request.label}</h3>
-                            <p>
-                              {request.requesterName} · {request.relation}
-                            </p>
-                          </div>
-                          <StatusPill>{request.status}</StatusPill>
-                        </div>
-                        <div className="request-grid">
-                          <div>
-                            <span>Umfang</span>
-                            <strong>{request.scope}</strong>
-                          </div>
-                          <div>
-                            <span>Nachweis</span>
-                            <strong>{request.evidenceStatus}</strong>
-                          </div>
-                          <div>
-                            <span>Eingang</span>
-                            <strong>{request.submittedAt}</strong>
-                          </div>
-                          <div>
-                            <span>Nächster Schritt</span>
-                            <strong>{request.nextStep}</strong>
-                          </div>
-                        </div>
-                        <div className="request-actions">
-                          {requestTransitions.map((transition) => (
-                            <button
-                              key={transition.label}
-                              className="button ghost small"
-                              onClick={() => moveRequest(request.id, transition.status, transition.nextStep)}
-                            >
-                              {transition.label}
-                            </button>
-                          ))}
-                        </div>
-                      </article>
-                    ))}
+                  <div className="queue-summary">
+                    <StatusPill tone="warning">{`${requests.filter((item) => item.status === "Neu eingegangen").length} neu`}</StatusPill>
+                    <StatusPill tone="warning">{`${requests.filter((item) => item.status === "In Prüfung").length} in Prüfung`}</StatusPill>
+                    <StatusPill tone="critical">{`${requests.filter((item) => item.status === "Rückfrage gesendet").length} Rückfragen`}</StatusPill>
+                    <StatusPill tone="positive">{`${requests.filter((item) => item.status === "Freigegeben").length} freigegeben`}</StatusPill>
                   </div>
+                  {filteredRequests.length === 0 ? (
+                    <EmptyState title="Keine Anfragen gefunden" copy="Passen Sie die Suche an oder legen Sie einen neuen Vorgang an." />
+                  ) : (
+                    <div className="request-stack">
+                      {filteredRequests.map((request) => (
+                        <article key={request.id} className="request-card">
+                          <div className="panel-head">
+                            <div>
+                              <h3>{request.label}</h3>
+                              <p>
+                                {request.requesterName} · {request.relation}
+                              </p>
+                            </div>
+                            <div className="request-head-meta">
+                              <StatusPill>{request.status}</StatusPill>
+                              <span>{requestPriority(request)}</span>
+                            </div>
+                          </div>
+                          <div className="request-grid">
+                            <div>
+                              <span>Umfang</span>
+                              <strong>{request.scope}</strong>
+                            </div>
+                            <div>
+                              <span>Nachweis</span>
+                              <strong>{request.evidenceStatus}</strong>
+                            </div>
+                            <div>
+                              <span>Eingang</span>
+                              <strong>{request.submittedAt}</strong>
+                            </div>
+                            <div>
+                              <span>Nächster Schritt</span>
+                              <strong>{request.nextStep}</strong>
+                            </div>
+                          </div>
+                          <div className="request-note">
+                            <strong>Empfehlung</strong>
+                            <p>{requestRecommendation(request)}</p>
+                          </div>
+                          <div className="request-actions">
+                            {getRequestActions(request.status).length === 0 ? (
+                              <span className="micro-copy">Für diesen Status ist keine weitere Aktion erforderlich.</span>
+                            ) : (
+                              getRequestActions(request.status).map((transition) => (
+                                <button
+                                  key={transition.label}
+                                  className={`button ${transition.tone === "primary" ? "primary" : "ghost"} small`}
+                                  onClick={() => moveRequest(request.id, transition.status, transition.nextStep)}
+                                  type="button"
+                                >
+                                  {transition.label}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </article>
               </section>
             )}
@@ -1367,25 +1804,25 @@ export default function HomePage() {
                 <article className="panel sticky">
                   <SectionHeader
                     eyebrow="Bereitschaftsmodell"
-                    title="Schrittfolge für einen belastbaren MVP"
+                    title="Schrittfolge für einen belastbaren Arbeitsbereich"
                     copy="Die Plattform zeigt nicht nur Daten, sondern macht den Reifegrad der Nachlassakte transparent."
                   />
                   <div className="workflow-steps">
                     <div className="workflow-step">
                       <strong>1. Bestand konsolidieren</strong>
-                      <p>Assets erhalten Verantwortliche, Zugriffsebenen und Review-Daten.</p>
+                      <p>Assets erhalten Verantwortliche, Zugriffsebenen und aktuelle Review-Daten.</p>
                     </div>
                     <div className="workflow-step">
                       <strong>2. Rollen absichern</strong>
-                      <p>Vertrauenspersonen werden mit Erwartungshaltung und fachlicher Reichweite verifiziert.</p>
+                      <p>Vertrauenspersonen werden mit Reaktionszeit und fachlicher Reichweite verifiziert.</p>
                     </div>
                     <div className="workflow-step">
                       <strong>3. Tresor strukturieren</strong>
-                      <p>Rechtliche, persönliche und betriebliche Pakete werden für spätere Freigaben vorbereitet.</p>
+                      <p>Rechtliche, persönliche und betriebliche Pakete bleiben mit Freigabekontext dokumentiert.</p>
                     </div>
                     <div className="workflow-step">
-                      <strong>4. Anfrageprozess testen</strong>
-                      <p>Freigaben lassen sich mit Statuswechsel, Rückfragen und Aktivitätsprotokoll demonstrieren.</p>
+                      <strong>4. Freigaben kontrollieren</strong>
+                      <p>Anfragen lassen sich mit Statuswechseln, Rückfragen und Historie operativ steuern.</p>
                     </div>
                   </div>
                 </article>
@@ -1393,19 +1830,21 @@ export default function HomePage() {
                 <article className="panel">
                   <SectionHeader
                     eyebrow="Checkliste"
-                    title="Offene Maßnahmen mit Wirkung auf die Bereitschaft"
-                    copy="Jede Änderung wird serverseitig in SQLite übernommen und im Aktivitätsprotokoll sichtbar."
+                    title="Offene Maßnahmen mit Auswirkung auf die Bereitschaft"
+                    copy="Jede Statusänderung wird serverseitig in SQLite übernommen und im Aktivitätsprotokoll dokumentiert."
                   />
                   <div className="checklist">
                     {checklist.map((item) => (
-                      <button key={item.id} className="checklist-item" onClick={() => toggleChecklistItem(item)}>
+                      <button key={item.id} className="checklist-item" onClick={() => cycleChecklistItem(item)} type="button">
                         <div>
                           <strong>{item.title}</strong>
                           <p>
-                            Verantwortlich: {item.owner} · Fällig: {item.dueLabel}
+                            Verantwortlich: {item.owner} · Ziel: {item.dueLabel}
                           </p>
                         </div>
-                        <StatusPill>{item.status}</StatusPill>
+                        <StatusPill tone={item.status === "Erledigt" ? "positive" : item.status === "In Arbeit" ? "warning" : "critical"}>
+                          {item.status}
+                        </StatusPill>
                       </button>
                     ))}
                   </div>
@@ -1414,57 +1853,83 @@ export default function HomePage() {
             )}
 
             {currentView === "settings" && (
-              <section className="settings-grid">
-                <article className="panel">
+              <section className="section-grid">
+                <article className="panel sticky">
                   <SectionHeader
-                    eyebrow="Betriebsprinzipien"
-                    title="Local-first und präsentationsfähig"
-                    copy="Der MVP bleibt bewusst leichtgewichtig: Next.js App Router, SQLite, keine externen Credentials."
+                    eyebrow="Arbeitsbereich"
+                    title="Lokale Nutzung steuern"
+                    copy="Sitzung, Startansicht und Datenexport bleiben ohne externe Dienste vollständig lokal kontrollierbar."
                   />
-                  <div className="settings-list">
-                    <div>
-                      <strong>Datenspeicherung</strong>
-                      <p>SQLite-Datei im Projektverzeichnis mit Seed-Daten für Assets, Tresor, Kontakte, Anfragen und Aktivität.</p>
-                    </div>
-                    <div>
-                      <strong>Auth-Demo</strong>
-                      <p>Lokale Registrierung und Session im Browser, ausreichend für Demo-Zwecke ohne Fremdsysteme.</p>
-                    </div>
-                    <div>
-                      <strong>Export</strong>
-                      <p>Der Leitstand kann jederzeit als JSON-Snapshot heruntergeladen werden.</p>
-                    </div>
-                  </div>
+                  <form
+                    className="stack-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setToast("Arbeitsbereichseinstellungen wurden lokal gespeichert.");
+                    }}
+                  >
+                    <label>
+                      Verantwortliche Person
+                      <input value={currentUser.name} readOnly />
+                    </label>
+                    <label>
+                      Startansicht nach Anmeldung
+                      <select
+                        value={uiPreferences.defaultView}
+                        onChange={(event) =>
+                          setUiPreferences((prev) => ({
+                            ...prev,
+                            defaultView: event.target.value as (typeof navItems)[number]["id"],
+                          }))
+                        }
+                      >
+                        {navItems.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button className="button primary" type="submit">
+                      Lokale Einstellungen sichern
+                    </button>
+                  </form>
                 </article>
 
                 <article className="panel">
                   <SectionHeader
-                    eyebrow="Empfohlene Demo-Story"
-                    title="So wirkt das Produkt bereits wie ein echter v1-Leitstand"
-                    copy="Zeigen Sie zuerst die Risikolage im Dashboard, dann die Rollen- und Dokumentenlogik und schließen Sie mit einer Anfrage-Triage."
+                    eyebrow="Datenqualität"
+                    title="Release-Readiness im lokalen Betrieb"
+                    copy="Diese Installation bleibt lokal-first und konzentriert sich auf saubere Freigabe- und Dokumentationsprozesse."
                   />
-                  <div className="settings-list">
-                    <div>
-                      <strong>1. Dashboard</strong>
-                      <p>Bereitschaftsgrad, Aktivität und offene Vorgänge schaffen sofort Vertrauen in die Struktur.</p>
-                    </div>
-                    <div>
-                      <strong>2. Tresor + Rollen</strong>
-                      <p>Sichtbarkeit, Aufbewahrung und Zuständigkeiten zeigen, dass die Plattform über bloße Listen hinausgeht.</p>
-                    </div>
-                    <div>
-                      <strong>3. Freigabeprozess</strong>
-                      <p>Der Statuswechsel in der Anfrage-Queue macht den Nutzen für Legal-Tech und Nachlassorganisation greifbar.</p>
-                    </div>
+                  <div className="settings-grid">
+                    <article className="settings-card">
+                      <strong>Persistenz</strong>
+                      <p>SQLite hält den Arbeitsdatenbestand lokal im Projekt. Sitzung und Startansicht bleiben im Browser gespeichert.</p>
+                    </article>
+                    <article className="settings-card">
+                      <strong>Export</strong>
+                      <p>Ein vollständiger JSON-Export für Übergabe, Archivierung oder lokale Sicherung ist jederzeit verfügbar.</p>
+                      <button className="button ghost small" onClick={exportWorkspaceSnapshot} type="button">
+                        Export vorbereiten
+                      </button>
+                    </article>
+                    <article className="settings-card">
+                      <strong>Build-Status</strong>
+                      <p>Die Anwendung ist für einen produktnahen lokalen v1-Einsatz vorbereitet und auf Build-Stabilität ausgelegt.</p>
+                    </article>
+                    <article className="settings-card">
+                      <strong>Aktueller Datenstand</strong>
+                      <p>Letzte Synchronisierung: {lastSyncedAt}. Alle Änderungen werden direkt in den lokalen APIs verarbeitet.</p>
+                    </article>
                   </div>
                 </article>
               </section>
             )}
           </div>
         )}
-      </section>
 
-      <div className={`toast${toast ? " visible" : ""}`}>{toast}</div>
+        <div className={`toast${toast ? " visible" : ""}`}>{toast}</div>
+      </section>
     </main>
   );
 }

@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nachlassleitstand",
-  description: "Lokale Next.js MVP-Plattform für digitale Nachlassvorsorge mit SQLite, Tresor, Rollen und Anfrageprüfung.",
+  title: "Nachlassleitstand | Lokale digitale Nachlassverwaltung",
+  description:
+    "Lokale Next.js Anwendung für digitale Nachlassverwaltung mit SQLite, strukturierter Freigabe-Queue, Tresor und Vertrauensrollen.",
 };
 
 export default function RootLayout({

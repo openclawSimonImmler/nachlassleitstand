@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createVaultItem, listVaultItems } from "@/lib/db";
+import { hasMinLength, normalizeText } from "@/lib/validation";
 
 export async function GET() {
   return NextResponse.json({ vaultItems: listVaultItems() });
@@ -16,27 +17,28 @@ export async function POST(request: Request) {
     summary?: string;
   };
 
-  if (
-    !body.title ||
-    !body.category ||
-    !body.visibility ||
-    !body.status ||
-    !body.retention ||
-    !body.updatedAt ||
-    !body.summary
-  ) {
-    return NextResponse.json({ error: "Ungültige Tresor-Daten." }, { status: 400 });
+  const payload = {
+    title: normalizeText(body.title),
+    category: normalizeText(body.category),
+    visibility: normalizeText(body.visibility),
+    status: normalizeText(body.status),
+    retention: normalizeText(body.retention),
+    updatedAt: normalizeText(body.updatedAt),
+    summary: normalizeText(body.summary),
+  };
+
+  if (!Object.values(payload).every(Boolean)) {
+    return NextResponse.json({ error: "Bitte alle Pflichtfelder für den Tresoreintrag ausfüllen." }, { status: 400 });
   }
 
-  const vaultItem = createVaultItem({
-    title: body.title,
-    category: body.category,
-    visibility: body.visibility,
-    status: body.status,
-    retention: body.retention,
-    updatedAt: body.updatedAt,
-    summary: body.summary,
-  });
+  if (!hasMinLength(payload.title, 3) || !hasMinLength(payload.summary, 20)) {
+    return NextResponse.json(
+      { error: "Titel und Kurzbeschreibung müssen den Zweck des Tresoreintrags klar benennen." },
+      { status: 400 },
+    );
+  }
+
+  const vaultItem = createVaultItem(payload);
 
   return NextResponse.json({ vaultItem }, { status: 201 });
 }
