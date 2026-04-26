@@ -877,10 +877,10 @@ export default function HomePage() {
           <div className="landing-hero-grid refined">
             <section className="landing-story refined">
               <div className="auth-badge">Vertraulicher Arbeitsbereich für digitale Nachlassvorsorge</div>
-              <h1>Digitale Nachlassvorsorge, die Verantwortung wirklich handhabbar macht.</h1>
+              <h1>Ein klarer Ort für alles, was im digitalen Nachlass nicht verloren gehen darf.</h1>
               <p className="subtext landing-copy refined">
-                Statt verstreuter Passwörter, Dokumente und Zuständigkeiten entsteht ein klarer Arbeitsbereich für Vorsorge,
-                Übergabe und kontrollierte Freigaben.
+                Nachlassleitstand bündelt Konten, Dokumente, Zuständigkeiten und Freigaben in einem ruhigen,
+                nachvollziehbaren Arbeitsbereich, damit aus Unsicherheit ein geordneter Übergabeprozess wird.
               </p>
 
               <div className="landing-cta-row">
@@ -888,14 +888,14 @@ export default function HomePage() {
                   Arbeitsbereich anlegen
                 </button>
                 <button className="button ghost" onClick={() => setAuthTab("login")} type="button">
-                  Demo-Bereich öffnen
+                  Bestehenden Bereich öffnen
                 </button>
               </div>
 
               <div className="landing-trust-row">
-                <span>Lokaler Datenbestand</span>
+                <span>Lokale Datenspeicherung</span>
                 <span>Kontrollierte Freigaben</span>
-                <span>JSON-Export</span>
+                <span>Nachvollziehbarer Export</span>
               </div>
             </section>
 
@@ -906,9 +906,9 @@ export default function HomePage() {
                     <span className="preview-label">Bereitschaftsgrad</span>
                     <strong>76% strukturiert</strong>
                   </div>
-                  <StatusPill tone="positive">Stabil</StatusPill>
+                  <StatusPill tone="positive">Gut vorbereitet</StatusPill>
                 </div>
-                <p>Checklisten, Rollen und Freigaben zeigen sofort, was abgesichert ist und wo noch Handlungsbedarf besteht.</p>
+                <p>Checklisten, Rollen und Freigaben zeigen auf einen Blick, was bereits sauber dokumentiert ist und was noch geklärt werden sollte.</p>
                 <div className="preview-mini-metrics">
                   <div>
                     <strong>24</strong>
@@ -928,9 +928,9 @@ export default function HomePage() {
               <div className="landing-preview-card slim-list">
                 <span className="preview-label">Wofür die Plattform gedacht ist</span>
                 <ul className="landing-list refined">
-                  <li>digitale Konten und Zugriffsregeln strukturieren</li>
-                  <li>wichtige Dokumente mit Freigabekontext ablegen</li>
-                  <li>Vertrauenspersonen und Zuständigkeiten sauber festhalten</li>
+                  <li>Digitale Konten und Zugriffsregeln geordnet festhalten</li>
+                  <li>Wichtige Dokumente mit Freigabekontext ablegen</li>
+                  <li>Vertrauenspersonen und Zuständigkeiten klar dokumentieren</li>
                   <li>Anfragen nachvollziehbar prüfen und entscheiden</li>
                 </ul>
               </div>
@@ -952,7 +952,7 @@ export default function HomePage() {
           <article className="metric-card neutral">
             <span>Betriebsmodell</span>
             <strong>Lokal und kontrollierbar</strong>
-            <p>Next.js und SQLite liefern einen klaren, leicht verständlichen Setup für Demo, Beratung oder internes Tooling.</p>
+            <p>Der aktuelle Stand eignet sich besonders für Demo, Beratung, Pilotbetrieb oder internes Tooling mit bewusst überschaubarem Setup.</p>
           </article>
         </section>
 
@@ -962,7 +962,7 @@ export default function HomePage() {
               <p className="eyebrow">Produktumfang</p>
               <h2>Die wichtigsten Bausteine auf einen Blick</h2>
               <p className="section-copy">
-                Der aktuelle Stand ist bewusst fokussiert und deckt genau die Bereiche ab, die in der Vorsorge schnell unübersichtlich werden.
+                Der aktuelle Produktstand konzentriert sich auf die Bereiche, in denen digitale Vorsorge in der Praxis besonders schnell unübersichtlich wird.
               </p>
             </div>
           </div>
@@ -998,7 +998,7 @@ export default function HomePage() {
           <div className="readiness-rail landing-rail refined">
             <div>
               <span>1</span>
-              <p>Arbeitsbereich anlegen und verantwortliche Person festlegen</p>
+              <p>Arbeitsbereich anlegen und eine verantwortliche Person festlegen</p>
             </div>
             <div>
               <span>2</span>
@@ -1019,7 +1019,7 @@ export default function HomePage() {
               <p className="section-copy">
                 {hasWorkspace
                   ? "Melden Sie sich mit den lokal hinterlegten Zugangsdaten an."
-                  : "Legen Sie einmalig eine verantwortliche Person für diesen lokalen Arbeitsbereich an."}
+                  : "Legen Sie einmalig die verantwortliche Person für diesen lokalen Arbeitsbereich an."}
               </p>
             </div>
 
@@ -1068,7 +1068,7 @@ export default function HomePage() {
               <button className="button primary" type="submit">
                 Arbeitsbereich öffnen
               </button>
-              <p className="micro-copy">Die Sitzung wird nur lokal im Browser gespeichert und kann jederzeit beendet werden.</p>
+              <p className="micro-copy">Die Sitzung wird ausschließlich lokal im Browser gespeichert und kann jederzeit beendet werden.</p>
             </form>
 
             <form className={`auth-form${authTab === "register" ? " is-visible" : ""}`} onSubmit={handleRegister}>

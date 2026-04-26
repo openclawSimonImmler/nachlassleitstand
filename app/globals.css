@@ -1155,13 +1155,20 @@ td span {
 }
 
 .landing-story.refined {
-  gap: 18px;
-  padding: 28px 24px;
+  gap: 16px;
+  padding: 30px 24px;
+}
+
+.landing-story.refined h1 {
+  max-width: 11ch;
+  line-height: 1.02;
+  text-wrap: balance;
 }
 
 .landing-copy.refined {
-  max-width: 640px;
-  font-size: 1.05rem;
+  max-width: 600px;
+  font-size: 1.03rem;
+  line-height: 1.72;
 }
 
 .landing-trust-row {
@@ -1178,7 +1185,8 @@ td span {
   border: 1px solid rgba(27, 63, 98, 0.1);
   color: var(--navy);
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  letter-spacing: -0.01em;
 }
 
 .landing-preview.refined {
@@ -1186,7 +1194,11 @@ td span {
 }
 
 .landing-preview-card.showcase {
-  padding: 22px;
+  padding: 24px;
+}
+
+.landing-preview-card.showcase p {
+  max-width: 34ch;
 }
 
 .landing-preview-head {
@@ -1232,7 +1244,13 @@ td span {
 .landing-list.refined {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding-left: 1.1rem;
+}
+
+.landing-list.refined li {
+  line-height: 1.55;
+  color: var(--text);
 }
 
 .landing-proof-grid {
@@ -1254,7 +1272,11 @@ td span {
 }
 
 .landing-feature-card h3 {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.landing-feature-card p {
+  max-width: 34ch;
 }
 
 .landing-feature-card,
@@ -1269,6 +1291,10 @@ td span {
   .landing-trust-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .landing-story.refined h1 {
+    max-width: none;
   }
 
   .landing-preview-head {
