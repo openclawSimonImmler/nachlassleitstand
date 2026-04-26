@@ -865,11 +865,8 @@ export default function HomePage() {
             </div>
 
             <div className="landing-topbar-actions">
-              <button className="button ghost" onClick={() => setAuthTab("login")} type="button">
-                Anmelden
-              </button>
-              <button className="button primary" onClick={() => setAuthTab("register")} type="button">
-                Jetzt einrichten
+              <button className="button ghost" onClick={() => setAuthTab(hasWorkspace ? "login" : "register")} type="button">
+                {hasWorkspace ? "Anmelden" : "Einrichten"}
               </button>
             </div>
           </header>
@@ -879,16 +876,13 @@ export default function HomePage() {
               <div className="auth-badge">Vertraulicher Arbeitsbereich für digitale Nachlassvorsorge</div>
               <h1>Ein ruhiger, klarer Ort für alles, was im digitalen Nachlass nicht unklar bleiben darf.</h1>
               <p className="subtext landing-copy refined">
-                Nachlassleitstand bündelt Konten, Dokumente, Zuständigkeiten und Freigaben in einem strukturierten Arbeitsbereich,
-                damit aus verstreuten Informationen ein kontrollierbarer Übergabeprozess wird.
+                Nachlassleitstand ordnet Konten, Dokumente, Zuständigkeiten und Freigaben in einem klaren Arbeitsbereich,
+                damit aus verstreuten Informationen ein verlässlicher Übergabeprozess wird.
               </p>
 
               <div className="landing-cta-row">
-                <button className="button primary" onClick={() => setAuthTab("register")} type="button">
-                  Arbeitsbereich anlegen
-                </button>
-                <button className="button ghost" onClick={() => setAuthTab("login")} type="button">
-                  Bestehenden Bereich öffnen
+                <button className="button primary" onClick={() => setAuthTab(hasWorkspace ? "login" : "register")} type="button">
+                  {hasWorkspace ? "Arbeitsbereich öffnen" : "Arbeitsbereich anlegen"}
                 </button>
               </div>
 
@@ -908,7 +902,7 @@ export default function HomePage() {
                   </div>
                   <StatusPill tone="positive">Gut vorbereitet</StatusPill>
                 </div>
-                <p>Checklisten, Rollen und Freigaben zeigen ohne Umwege, was bereits abgesichert ist und wo noch Entscheidungen fehlen.</p>
+                <p>Checklisten, Rollen und Freigaben machen sofort sichtbar, was abgesichert ist und wo noch Entscheidungen fehlen.</p>
                 <div className="preview-mini-metrics">
                   <div>
                     <strong>24</strong>
@@ -929,7 +923,7 @@ export default function HomePage() {
                 <span className="preview-label">Wofür der Arbeitsbereich gedacht ist</span>
                 <ul className="landing-list refined">
                   <li>Digitale Konten und Zugriffsregeln geordnet festhalten</li>
-                  <li>Wichtige Dokumente mit Freigabekontext ablegen</li>
+                  <li>Wichtige Dokumente mit Freigabekontext sauber ablegen</li>
                   <li>Vertrauenspersonen und Zuständigkeiten klar dokumentieren</li>
                   <li>Anfragen nachvollziehbar prüfen und entscheiden</li>
                 </ul>
@@ -942,7 +936,7 @@ export default function HomePage() {
           <article className="metric-card positive">
             <span>Ein Arbeitsbereich</span>
             <strong>4 Kernmodule</strong>
-            <p>Assets, Tresor, Vertrauenspersonen und Freigaben greifen in einem gemeinsamen System ineinander.</p>
+            <p>Assets, Tresor, Vertrauensrollen und Freigaben greifen in einem gemeinsamen System ineinander.</p>
           </article>
           <article className="metric-card warning">
             <span>Prüfpfad</span>
@@ -1019,7 +1013,7 @@ export default function HomePage() {
               <p className="section-copy">
                 {hasWorkspace
                   ? "Melden Sie sich mit den lokal hinterlegten Zugangsdaten an."
-                  : "Legen Sie einmalig die verantwortliche Person für diesen lokalen Arbeitsbereich fest."}
+                  : "Legen Sie einmalig die verantwortliche Person für diesen lokalen Arbeitsbereich fest und beginnen Sie mit einem klaren Grundgerüst."}
               </p>
             </div>
 
@@ -1271,11 +1265,8 @@ export default function HomePage() {
                     </p>
                   </div>
                   <div className="hero-actions">
-                    <button className="button primary" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
-                      Freigaben steuern
-                    </button>
-                    <button className="button ghost" onClick={() => startTransition(() => setCurrentView("workflow"))} type="button">
-                      Aufgaben prüfen
+                    <button className="button primary" onClick={() => startTransition(() => setCurrentView("workflow"))} type="button">
+                      Nächsten Schritt öffnen
                     </button>
                   </div>
                 </section>
@@ -1300,25 +1291,16 @@ export default function HomePage() {
                         <span>Kritischster Punkt</span>
                         <strong>{nextChecklistItem?.title ?? "Keine offenen Kernaufgaben"}</strong>
                         <p>Die Checkliste steuert den Reifegrad des gesamten Arbeitsbereichs.</p>
-                        <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("workflow"))} type="button">
-                          Zur Checkliste
-                        </button>
                       </article>
                       <article className="priority-card">
                         <span>Freigabe-Queue</span>
                         <strong>{activeRequests} aktive Vorgänge</strong>
                         <p>Neue oder laufende Vorgänge sollten täglich gesichtet und triagiert werden.</p>
-                        <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
-                          Queue öffnen
-                        </button>
                       </article>
                       <article className="priority-card">
                         <span>Bestandsqualität</span>
                         <strong>{assets.length} Assets dokumentiert</strong>
                         <p>Freigaben sind nur belastbar, wenn Asset-Bestand und Verantwortlichkeiten sauber gepflegt bleiben.</p>
-                        <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("assets"))} type="button">
-                          Assets prüfen
-                        </button>
                       </article>
                     </div>
                   </article>
