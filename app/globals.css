@@ -1146,61 +1146,61 @@ td span {
 }
 
 .landing-hero.refined {
-  padding: 32px;
+  padding: 36px;
 }
 
 .landing-hero-grid.refined {
-  grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
-  gap: 28px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.9fr);
+  gap: 32px;
 }
 
 .landing-story.refined {
-  gap: 18px;
-  padding: 34px 28px;
+  gap: 20px;
+  padding: 38px 30px;
 }
 
 .landing-story.refined h1 {
-  max-width: 12ch;
-  line-height: 0.99;
+  max-width: 11.5ch;
+  line-height: 0.98;
   text-wrap: balance;
 }
 
 .landing-copy.refined {
-  max-width: 34rem;
-  font-size: 1.05rem;
-  line-height: 1.76;
+  max-width: 33rem;
+  font-size: 1.02rem;
+  line-height: 1.8;
 }
 
 .landing-trust-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 10px;
 }
 
 .landing-trust-row span {
-  padding: 10px 14px;
+  padding: 10px 15px;
   border-radius: 999px;
-  background: rgba(27, 63, 98, 0.07);
-  border: 1px solid rgba(27, 63, 98, 0.1);
+  background: rgba(27, 63, 98, 0.06);
+  border: 1px solid rgba(27, 63, 98, 0.09);
   color: var(--navy);
   font-weight: 700;
-  font-size: 0.9rem;
-  letter-spacing: -0.01em;
+  font-size: 0.88rem;
+  letter-spacing: 0;
 }
 
 .landing-preview.refined {
-  gap: 18px;
-  padding-top: 6px;
+  gap: 20px;
+  padding-top: 12px;
 }
 
 .landing-preview-card.showcase {
-  padding: 26px;
+  padding: 28px;
 }
 
 .landing-preview-card.showcase p {
-  max-width: 33ch;
-  line-height: 1.7;
+  max-width: 32ch;
+  line-height: 1.72;
 }
 
 .landing-preview-head {
@@ -1246,12 +1246,12 @@ td span {
 .landing-list.refined {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   padding-left: 1.1rem;
 }
 
 .landing-list.refined li {
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text);
 }
 
@@ -1289,7 +1289,7 @@ td span {
 }
 
 .landing-auth-panel {
-  background: rgba(255, 253, 249, 0.94);
+  background: rgba(255, 253, 249, 0.96);
 }
 
 .landing-auth-panel .section-copy {
