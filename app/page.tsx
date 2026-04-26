@@ -1194,12 +1194,6 @@ export default function HomePage() {
             </div>
 
             <div className="topbar-actions">
-              <button className="button ghost" onClick={exportWorkspaceSnapshot} type="button">
-                Export
-              </button>
-              <button className="button ghost" onClick={() => startTransition(() => setCurrentView("settings"))} type="button">
-                Arbeitsbereich
-              </button>
               <div className="profile">
                 <div className="avatar">{initialsFromName(currentUser.name) || "NL"}</div>
                 <div>
@@ -1268,6 +1262,9 @@ export default function HomePage() {
                     <button className="button primary" onClick={() => startTransition(() => setCurrentView("workflow"))} type="button">
                       Nächsten Schritt öffnen
                     </button>
+                    <button className="button ghost" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
+                      Offene Anfragen ansehen
+                    </button>
                   </div>
                 </section>
 
@@ -1333,9 +1330,6 @@ export default function HomePage() {
                   <article className="panel">
                     <div className="panel-head">
                       <h3>Aktive Assets</h3>
-                      <button className="text-button" onClick={() => startTransition(() => setCurrentView("assets"))} type="button">
-                        Asset-Bestand öffnen
-                      </button>
                     </div>
                     <div className="list-stack">
                       {assets.slice(0, 4).map((asset) => (
@@ -1358,9 +1352,6 @@ export default function HomePage() {
                   <article className="panel">
                     <div className="panel-head">
                       <h3>Freigabe-Queue</h3>
-                      <button className="text-button" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
-                        Vorgänge öffnen
-                      </button>
                     </div>
                     <div className="list-stack">
                       {filteredRequests.slice(0, 4).map((request) => (
@@ -1991,9 +1982,14 @@ export default function HomePage() {
                         ))}
                       </select>
                     </label>
-                    <button className="button primary" type="submit">
-                      Lokale Einstellungen sichern
-                    </button>
+                    <div className="form-actions">
+                      <button className="button primary" type="submit">
+                        Lokale Einstellungen sichern
+                      </button>
+                      <button className="button ghost" onClick={exportWorkspaceSnapshot} type="button">
+                        Export vorbereiten
+                      </button>
+                    </div>
                   </form>
                 </article>
 
@@ -2011,9 +2007,6 @@ export default function HomePage() {
                     <article className="settings-card">
                       <strong>Export</strong>
                       <p>Ein vollständiger JSON-Export für Übergabe, Archivierung oder lokale Sicherung ist jederzeit verfügbar.</p>
-                      <button className="button ghost small" onClick={exportWorkspaceSnapshot} type="button">
-                        Export vorbereiten
-                      </button>
                     </article>
                     <article className="settings-card">
                       <strong>Build-Status</strong>
