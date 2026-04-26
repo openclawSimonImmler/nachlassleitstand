@@ -877,10 +877,10 @@ export default function HomePage() {
           <div className="landing-hero-grid refined">
             <section className="landing-story refined">
               <div className="auth-badge">Vertraulicher Arbeitsbereich für digitale Nachlassvorsorge</div>
-              <h1>Ein klarer Ort für alles, was im digitalen Nachlass nicht verloren gehen darf.</h1>
+              <h1>Damit im digitalen Nachlass nichts Wichtiges verloren geht, wenn Verantwortung plötzlich konkret wird.</h1>
               <p className="subtext landing-copy refined">
-                Nachlassleitstand bündelt Konten, Dokumente, Zuständigkeiten und Freigaben in einem ruhigen,
-                nachvollziehbaren Arbeitsbereich, damit aus Unsicherheit ein geordneter Übergabeprozess wird.
+                Nachlassleitstand bündelt Konten, Dokumente, Zuständigkeiten und Freigaben in einem klaren,
+                ruhigen Arbeitsbereich, damit aus Unsicherheit ein geordneter Übergabeprozess wird.
               </p>
 
               <div className="landing-cta-row">
@@ -908,7 +908,7 @@ export default function HomePage() {
                   </div>
                   <StatusPill tone="positive">Gut vorbereitet</StatusPill>
                 </div>
-                <p>Checklisten, Rollen und Freigaben zeigen auf einen Blick, was bereits sauber dokumentiert ist und was noch geklärt werden sollte.</p>
+                <p>Checklisten, Rollen und Freigaben machen sofort sichtbar, was bereits abgesichert ist und was noch geklärt werden sollte.</p>
                 <div className="preview-mini-metrics">
                   <div>
                     <strong>24</strong>
@@ -942,7 +942,7 @@ export default function HomePage() {
           <article className="metric-card positive">
             <span>Ein Arbeitsbereich</span>
             <strong>4 Kernmodule</strong>
-            <p>Assets, Tresor, Vertrauenspersonen und Freigaben arbeiten zusammen statt nebeneinander.</p>
+            <p>Assets, Tresor, Vertrauenspersonen und Freigaben greifen ineinander, statt als einzelne Listen nebeneinander zu stehen.</p>
           </article>
           <article className="metric-card warning">
             <span>Prüfpfad</span>
@@ -952,7 +952,7 @@ export default function HomePage() {
           <article className="metric-card neutral">
             <span>Betriebsmodell</span>
             <strong>Lokal und kontrollierbar</strong>
-            <p>Der aktuelle Stand eignet sich besonders für Demo, Beratung, Pilotbetrieb oder internes Tooling mit bewusst überschaubarem Setup.</p>
+            <p>Der aktuelle Stand eignet sich besonders für Demo, Beratung, Pilotbetrieb oder internes Tooling mit bewusst schlankem Setup.</p>
           </article>
         </section>
 
@@ -962,7 +962,7 @@ export default function HomePage() {
               <p className="eyebrow">Produktumfang</p>
               <h2>Die wichtigsten Bausteine auf einen Blick</h2>
               <p className="section-copy">
-                Der aktuelle Produktstand konzentriert sich auf die Bereiche, in denen digitale Vorsorge in der Praxis besonders schnell unübersichtlich wird.
+                Der aktuelle Produktstand konzentriert sich auf die Bereiche, die in der digitalen Vorsorge in der Praxis am schnellsten unübersichtlich werden.
               </p>
             </div>
           </div>
@@ -970,19 +970,19 @@ export default function HomePage() {
           <div className="landing-feature-grid refined">
             <article className="panel landing-feature-card">
               <h3>Asset-Register</h3>
-              <p>Konten, Systeme und Zugriffsregeln mit Verantwortlichen und Review-Stand pflegen.</p>
+              <p>Konten, Systeme und Zugriffsregeln mit Verantwortlichkeiten und Review-Stand sauber pflegen.</p>
             </article>
             <article className="panel landing-feature-card">
               <h3>Dokumententresor</h3>
-              <p>Wichtige Inhalte mit Sichtbarkeit, Aufbewahrung und Freigabekontext strukturiert dokumentieren.</p>
+              <p>Wichtige Dokumente mit Sichtbarkeit, Aufbewahrung und Freigabekontext strukturiert festhalten.</p>
             </article>
             <article className="panel landing-feature-card">
               <h3>Vertrauensrollen</h3>
-              <p>Personen und Zuständigkeiten so festhalten, dass operative Übergaben klar bleiben.</p>
+              <p>Vertrauenspersonen und Zuständigkeiten so dokumentieren, dass operative Übergaben klar bleiben.</p>
             </article>
             <article className="panel landing-feature-card">
               <h3>Freigabe-Queue</h3>
-              <p>Anfragen kontrolliert prüfen, Rückfragen dokumentieren und Entscheidungen nachvollziehbar treffen.</p>
+              <p>Anfragen kontrolliert prüfen, Rückfragen dokumentieren und Entscheidungen sauber begründen.</p>
             </article>
           </div>
         </section>
@@ -1019,7 +1019,7 @@ export default function HomePage() {
               <p className="section-copy">
                 {hasWorkspace
                   ? "Melden Sie sich mit den lokal hinterlegten Zugangsdaten an."
-                  : "Legen Sie einmalig die verantwortliche Person für diesen lokalen Arbeitsbereich an."}
+                  : "Legen Sie einmalig die verantwortliche Person für diesen lokalen Arbeitsbereich fest."}
               </p>
             </div>
 
