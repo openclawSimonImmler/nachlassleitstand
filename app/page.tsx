@@ -854,7 +854,7 @@ export default function HomePage() {
 
     return (
       <main className="landing-shell">
-        <section className="landing-hero">
+        <section className="landing-hero refined">
           <header className="landing-topbar">
             <div className="brand brand-landing">
               <div className="brand-mark">NL</div>
@@ -874,13 +874,13 @@ export default function HomePage() {
             </div>
           </header>
 
-          <div className="landing-hero-grid">
-            <section className="landing-story">
+          <div className="landing-hero-grid refined">
+            <section className="landing-story refined">
               <div className="auth-badge">Vertraulicher Arbeitsbereich für digitale Nachlassvorsorge</div>
-              <h1>Ordnung für den Ernstfall, bevor aus Chaos ein Problem wird.</h1>
-              <p className="subtext landing-copy">
-                Nachlassleitstand bündelt digitale Assets, Dokumente, Vertrauenspersonen und Freigabeprozesse in einem
-                klaren Arbeitsbereich. So entsteht aus verstreuten Informationen ein belastbarer Handlungsrahmen.
+              <h1>Digitale Nachlassvorsorge, die Verantwortung wirklich handhabbar macht.</h1>
+              <p className="subtext landing-copy refined">
+                Statt verstreuter Passwörter, Dokumente und Zuständigkeiten entsteht ein klarer Arbeitsbereich für Vorsorge,
+                Übergabe und kontrollierte Freigaben.
               </p>
 
               <div className="landing-cta-row">
@@ -888,53 +888,57 @@ export default function HomePage() {
                   Arbeitsbereich anlegen
                 </button>
                 <button className="button ghost" onClick={() => setAuthTab("login")} type="button">
-                  Bestehenden Bereich öffnen
+                  Demo-Bereich öffnen
                 </button>
               </div>
 
-              <div className="landing-proof-grid">
-                <article className="landing-proof-card">
-                  <strong>Nachvollziehbare Freigaben</strong>
-                  <p>Jede Anfrage bleibt mit Status, Nachweislage und nächstem Schritt dokumentiert.</p>
-                </article>
-                <article className="landing-proof-card">
-                  <strong>Lokaler Datenbestand</strong>
-                  <p>SQLite, JSON-Export und browserlokale Anmeldung halten die Kontrolle bei dir.</p>
-                </article>
-                <article className="landing-proof-card">
-                  <strong>Klare Zuständigkeiten</strong>
-                  <p>Assets, Rollen und Tresor-Inhalte sind nicht nur erfasst, sondern operativ zugeordnet.</p>
-                </article>
+              <div className="landing-trust-row">
+                <span>Lokaler Datenbestand</span>
+                <span>Kontrollierte Freigaben</span>
+                <span>JSON-Export</span>
               </div>
             </section>
 
-            <aside className="landing-preview">
-              <div className="landing-preview-card dark">
-                <span className="preview-label">Bereitschaftsgrad</span>
-                <strong>76% strukturiert</strong>
-                <p>Checklisten, Rollen und Freigaben zeigen auf einen Blick, was abgesichert ist und was noch fehlt.</p>
-              </div>
-              <div className="landing-preview-card">
-                <span className="preview-label">Abgedeckte Arbeitsbereiche</span>
-                <ul className="landing-list">
-                  <li>Digitale Assets und Zugriffsregeln</li>
-                  <li>Dokumententresor mit Freigabekontext</li>
-                  <li>Vertrauenspersonen und Rollenmodell</li>
-                  <li>Anfrage-Queue mit Triage</li>
-                </ul>
-              </div>
-              <div className="landing-preview-card compact">
-                <div>
-                  <span className="preview-label">Geeignet für</span>
-                  <strong>Demo, Beratung, internes Setup</strong>
+            <aside className="landing-preview refined">
+              <div className="landing-preview-card dark showcase">
+                <div className="landing-preview-head">
+                  <div>
+                    <span className="preview-label">Bereitschaftsgrad</span>
+                    <strong>76% strukturiert</strong>
+                  </div>
+                  <StatusPill tone="positive">Stabil</StatusPill>
                 </div>
-                <StatusPill tone="neutral">v1 MVP</StatusPill>
+                <p>Checklisten, Rollen und Freigaben zeigen sofort, was abgesichert ist und wo noch Handlungsbedarf besteht.</p>
+                <div className="preview-mini-metrics">
+                  <div>
+                    <strong>24</strong>
+                    <span>Assets</span>
+                  </div>
+                  <div>
+                    <strong>8</strong>
+                    <span>Vertrauensrollen</span>
+                  </div>
+                  <div>
+                    <strong>3</strong>
+                    <span>offene Anfragen</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="landing-preview-card slim-list">
+                <span className="preview-label">Wofür die Plattform gedacht ist</span>
+                <ul className="landing-list refined">
+                  <li>digitale Konten und Zugriffsregeln strukturieren</li>
+                  <li>wichtige Dokumente mit Freigabekontext ablegen</li>
+                  <li>Vertrauenspersonen und Zuständigkeiten sauber festhalten</li>
+                  <li>Anfragen nachvollziehbar prüfen und entscheiden</li>
+                </ul>
               </div>
             </aside>
           </div>
         </section>
 
-        <section className="landing-section landing-metrics">
+        <section className="landing-section landing-metrics refined">
           <article className="metric-card positive">
             <span>Ein Arbeitsbereich</span>
             <strong>4 Kernmodule</strong>
@@ -943,30 +947,30 @@ export default function HomePage() {
           <article className="metric-card warning">
             <span>Prüfpfad</span>
             <strong>100% nachvollziehbar</strong>
-            <p>Jeder Vorgang kann mit Statuslogik, Nachweisen und Empfehlungen sauber dokumentiert werden.</p>
+            <p>Entscheidungen, Nachweise und nächste Schritte bleiben sauber dokumentiert.</p>
           </article>
           <article className="metric-card neutral">
-            <span>Deployment</span>
-            <strong>Next.js + SQLite</strong>
-            <p>Einfach deploybar auf VPS, Staging-Umgebungen oder als internes Werkzeug mit persistentem Speicher.</p>
+            <span>Betriebsmodell</span>
+            <strong>Lokal und kontrollierbar</strong>
+            <p>Next.js und SQLite liefern einen klaren, leicht verständlichen Setup für Demo, Beratung oder internes Tooling.</p>
           </article>
         </section>
 
-        <section className="landing-section landing-features">
+        <section className="landing-section landing-features refined">
           <div className="section-header">
             <div>
               <p className="eyebrow">Produktumfang</p>
-              <h2>Was die Plattform schon jetzt gut kann</h2>
+              <h2>Die wichtigsten Bausteine auf einen Blick</h2>
               <p className="section-copy">
-                Der aktuelle Stand ist bewusst pragmatisch, aber schon stark genug für strukturierte Vorsorgeprozesse und belastbare Demos.
+                Der aktuelle Stand ist bewusst fokussiert und deckt genau die Bereiche ab, die in der Vorsorge schnell unübersichtlich werden.
               </p>
             </div>
           </div>
 
-          <div className="landing-feature-grid">
+          <div className="landing-feature-grid refined">
             <article className="panel landing-feature-card">
               <h3>Asset-Register</h3>
-              <p>Digitale Konten, Systeme und Zugriffsregeln mit Verantwortlichen und Review-Stand pflegen.</p>
+              <p>Konten, Systeme und Zugriffsregeln mit Verantwortlichen und Review-Stand pflegen.</p>
             </article>
             <article className="panel landing-feature-card">
               <h3>Dokumententresor</h3>
@@ -974,7 +978,7 @@ export default function HomePage() {
             </article>
             <article className="panel landing-feature-card">
               <h3>Vertrauensrollen</h3>
-              <p>Personen, Rollen und Zuständigkeiten so festhalten, dass operative Übergaben klar bleiben.</p>
+              <p>Personen und Zuständigkeiten so festhalten, dass operative Übergaben klar bleiben.</p>
             </article>
             <article className="panel landing-feature-card">
               <h3>Freigabe-Queue</h3>
@@ -983,31 +987,31 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="landing-section landing-process">
+        <section className="landing-section landing-process refined">
           <div className="section-header">
             <div>
               <p className="eyebrow">Ablauf</p>
-              <h2>In drei Schritten zu einem klaren Nachlass-Setup</h2>
+              <h2>Von verstreuten Informationen zu einem klaren Übergabeprozess</h2>
             </div>
           </div>
 
-          <div className="readiness-rail landing-rail">
+          <div className="readiness-rail landing-rail refined">
             <div>
               <span>1</span>
-              <p>Arbeitsbereich anlegen und verantwortliche Person definieren</p>
+              <p>Arbeitsbereich anlegen und verantwortliche Person festlegen</p>
             </div>
             <div>
               <span>2</span>
-              <p>Assets, Dokumente und Vertrauenspersonen sauber strukturieren</p>
+              <p>Assets, Dokumente und Vertrauensrollen gemeinsam strukturieren</p>
             </div>
             <div>
               <span>3</span>
-              <p>Freigaben, Prüfpfade und Exporte für den Ernstfall vorbereiten</p>
+              <p>Freigaben, Prüfpfade und Export für den Ernstfall vorbereiten</p>
             </div>
           </div>
         </section>
 
-        <section className="landing-section landing-auth-section">
+        <section className="landing-section landing-auth-section refined">
           <section className="auth-panel landing-auth-panel">
             <div className="auth-panel-head">
               <p className="eyebrow">Zugang</p>
