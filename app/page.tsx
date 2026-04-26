@@ -853,155 +853,271 @@ export default function HomePage() {
     const hasWorkspace = typeof window !== "undefined" && Boolean(window.localStorage.getItem(STORAGE_KEYS.user));
 
     return (
-      <main className="auth-shell">
-        <section className="auth-story">
-          <div className="auth-badge">Lokaler Nachlassleitstand</div>
-          <h1>Digitale Nachlassverwaltung mit klaren Zuständigkeiten, belastbaren Freigaben und nachvollziehbarer Historie.</h1>
-          <p className="subtext">
-            Der Arbeitsbereich läuft lokal mit SQLite und speichert den Zugang im Browser. So bleiben Prozesse,
-            Zuständigkeiten und Dokumentationsstände im Projekt kontrollierbar und ohne externe Abhängigkeiten.
-          </p>
+      <main className="landing-shell">
+        <section className="landing-hero">
+          <header className="landing-topbar">
+            <div className="brand brand-landing">
+              <div className="brand-mark">NL</div>
+              <div>
+                <p className="brand-kicker">Nachlassleitstand</p>
+                <strong>Digitale Vorsorge mit System</strong>
+              </div>
+            </div>
 
-          <div className="auth-grid">
-            <article className="auth-card">
-              <strong>Verlässlicher Einstieg</strong>
-              <p>Erst den lokalen Arbeitsbereich einrichten, dann mit einer festen verantwortlichen Person starten.</p>
-            </article>
-            <article className="auth-card">
-              <strong>Kontrollierte Freigaben</strong>
-              <p>Anfragen, Nachweise und nächste Schritte bleiben im gleichen System nachvollziehbar.</p>
-            </article>
-            <article className="auth-card">
-              <strong>Publizierbare Basis</strong>
-              <p>Klare Formulare, Exportfunktion und persistente Daten sorgen für einen belastbaren v1-Stand.</p>
-            </article>
+            <div className="landing-topbar-actions">
+              <button className="button ghost" onClick={() => setAuthTab("login")} type="button">
+                Anmelden
+              </button>
+              <button className="button primary" onClick={() => setAuthTab("register")} type="button">
+                Jetzt einrichten
+              </button>
+            </div>
+          </header>
+
+          <div className="landing-hero-grid">
+            <section className="landing-story">
+              <div className="auth-badge">Vertraulicher Arbeitsbereich für digitale Nachlassvorsorge</div>
+              <h1>Ordnung für den Ernstfall, bevor aus Chaos ein Problem wird.</h1>
+              <p className="subtext landing-copy">
+                Nachlassleitstand bündelt digitale Assets, Dokumente, Vertrauenspersonen und Freigabeprozesse in einem
+                klaren Arbeitsbereich. So entsteht aus verstreuten Informationen ein belastbarer Handlungsrahmen.
+              </p>
+
+              <div className="landing-cta-row">
+                <button className="button primary" onClick={() => setAuthTab("register")} type="button">
+                  Arbeitsbereich anlegen
+                </button>
+                <button className="button ghost" onClick={() => setAuthTab("login")} type="button">
+                  Bestehenden Bereich öffnen
+                </button>
+              </div>
+
+              <div className="landing-proof-grid">
+                <article className="landing-proof-card">
+                  <strong>Nachvollziehbare Freigaben</strong>
+                  <p>Jede Anfrage bleibt mit Status, Nachweislage und nächstem Schritt dokumentiert.</p>
+                </article>
+                <article className="landing-proof-card">
+                  <strong>Lokaler Datenbestand</strong>
+                  <p>SQLite, JSON-Export und browserlokale Anmeldung halten die Kontrolle bei dir.</p>
+                </article>
+                <article className="landing-proof-card">
+                  <strong>Klare Zuständigkeiten</strong>
+                  <p>Assets, Rollen und Tresor-Inhalte sind nicht nur erfasst, sondern operativ zugeordnet.</p>
+                </article>
+              </div>
+            </section>
+
+            <aside className="landing-preview">
+              <div className="landing-preview-card dark">
+                <span className="preview-label">Bereitschaftsgrad</span>
+                <strong>76% strukturiert</strong>
+                <p>Checklisten, Rollen und Freigaben zeigen auf einen Blick, was abgesichert ist und was noch fehlt.</p>
+              </div>
+              <div className="landing-preview-card">
+                <span className="preview-label">Abgedeckte Arbeitsbereiche</span>
+                <ul className="landing-list">
+                  <li>Digitale Assets und Zugriffsregeln</li>
+                  <li>Dokumententresor mit Freigabekontext</li>
+                  <li>Vertrauenspersonen und Rollenmodell</li>
+                  <li>Anfrage-Queue mit Triage</li>
+                </ul>
+              </div>
+              <div className="landing-preview-card compact">
+                <div>
+                  <span className="preview-label">Geeignet für</span>
+                  <strong>Demo, Beratung, internes Setup</strong>
+                </div>
+                <StatusPill tone="neutral">v1 MVP</StatusPill>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section className="landing-section landing-metrics">
+          <article className="metric-card positive">
+            <span>Ein Arbeitsbereich</span>
+            <strong>4 Kernmodule</strong>
+            <p>Assets, Tresor, Vertrauenspersonen und Freigaben arbeiten zusammen statt nebeneinander.</p>
+          </article>
+          <article className="metric-card warning">
+            <span>Prüfpfad</span>
+            <strong>100% nachvollziehbar</strong>
+            <p>Jeder Vorgang kann mit Statuslogik, Nachweisen und Empfehlungen sauber dokumentiert werden.</p>
+          </article>
+          <article className="metric-card neutral">
+            <span>Deployment</span>
+            <strong>Next.js + SQLite</strong>
+            <p>Einfach deploybar auf VPS, Staging-Umgebungen oder als internes Werkzeug mit persistentem Speicher.</p>
+          </article>
+        </section>
+
+        <section className="landing-section landing-features">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Produktumfang</p>
+              <h2>Was die Plattform schon jetzt gut kann</h2>
+              <p className="section-copy">
+                Der aktuelle Stand ist bewusst pragmatisch, aber schon stark genug für strukturierte Vorsorgeprozesse und belastbare Demos.
+              </p>
+            </div>
           </div>
 
-          <div className="readiness-rail">
+          <div className="landing-feature-grid">
+            <article className="panel landing-feature-card">
+              <h3>Asset-Register</h3>
+              <p>Digitale Konten, Systeme und Zugriffsregeln mit Verantwortlichen und Review-Stand pflegen.</p>
+            </article>
+            <article className="panel landing-feature-card">
+              <h3>Dokumententresor</h3>
+              <p>Wichtige Inhalte mit Sichtbarkeit, Aufbewahrung und Freigabekontext strukturiert dokumentieren.</p>
+            </article>
+            <article className="panel landing-feature-card">
+              <h3>Vertrauensrollen</h3>
+              <p>Personen, Rollen und Zuständigkeiten so festhalten, dass operative Übergaben klar bleiben.</p>
+            </article>
+            <article className="panel landing-feature-card">
+              <h3>Freigabe-Queue</h3>
+              <p>Anfragen kontrolliert prüfen, Rückfragen dokumentieren und Entscheidungen nachvollziehbar treffen.</p>
+            </article>
+          </div>
+        </section>
+
+        <section className="landing-section landing-process">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Ablauf</p>
+              <h2>In drei Schritten zu einem klaren Nachlass-Setup</h2>
+            </div>
+          </div>
+
+          <div className="readiness-rail landing-rail">
             <div>
               <span>1</span>
-              <p>Arbeitsbereich lokal einrichten</p>
+              <p>Arbeitsbereich anlegen und verantwortliche Person definieren</p>
             </div>
             <div>
               <span>2</span>
-              <p>Bestand, Rollen und Tresor prüfen</p>
+              <p>Assets, Dokumente und Vertrauenspersonen sauber strukturieren</p>
             </div>
             <div>
               <span>3</span>
-              <p>Anfragen kontrolliert bearbeiten</p>
+              <p>Freigaben, Prüfpfade und Exporte für den Ernstfall vorbereiten</p>
             </div>
           </div>
         </section>
 
-        <section className="auth-panel">
-          <div className="auth-panel-head">
-            <p className="eyebrow">Zugang</p>
-            <h2>{hasWorkspace ? "Arbeitsbereich öffnen" : "Arbeitsbereich einrichten"}</h2>
-            <p className="section-copy">
-              {hasWorkspace
-                ? "Melden Sie sich mit den lokal hinterlegten Zugangsdaten an."
-                : "Legen Sie einmalig eine verantwortliche Person für diesen lokalen Arbeitsbereich an."}
-            </p>
-          </div>
+        <section className="landing-section landing-auth-section">
+          <section className="auth-panel landing-auth-panel">
+            <div className="auth-panel-head">
+              <p className="eyebrow">Zugang</p>
+              <h2>{hasWorkspace ? "Arbeitsbereich öffnen" : "Arbeitsbereich einrichten"}</h2>
+              <p className="section-copy">
+                {hasWorkspace
+                  ? "Melden Sie sich mit den lokal hinterlegten Zugangsdaten an."
+                  : "Legen Sie einmalig eine verantwortliche Person für diesen lokalen Arbeitsbereich an."}
+              </p>
+            </div>
 
-          <div className="auth-tabs">
-            <button className={`tab-button${authTab === "login" ? " active" : ""}`} onClick={() => setAuthTab("login")} type="button">
-              Anmelden
-            </button>
-            <button
-              className={`tab-button${authTab === "register" ? " active" : ""}`}
-              onClick={() => setAuthTab("register")}
-              type="button"
-            >
-              Einrichten
-            </button>
-          </div>
+            <div className="auth-tabs">
+              <button className={`tab-button${authTab === "login" ? " active" : ""}`} onClick={() => setAuthTab("login")} type="button">
+                Anmelden
+              </button>
+              <button
+                className={`tab-button${authTab === "register" ? " active" : ""}`}
+                onClick={() => setAuthTab("register")}
+                type="button"
+              >
+                Einrichten
+              </button>
+            </div>
 
-          <form className={`auth-form${authTab === "login" ? " is-visible" : ""}`} onSubmit={handleLogin}>
-            <label>
-              E-Mail
-              <input
-                type="email"
-                value={loginData.email}
-                onChange={(event) => {
-                  setLoginData((prev) => ({ ...prev, email: event.target.value }));
-                  if (loginErrors.email) setLoginErrors((prev) => ({ ...prev, email: "" }));
-                }}
-                placeholder="name@unternehmen.de"
-                required
-              />
-              <FieldError message={loginErrors.email} />
-            </label>
-            <label>
-              Passwort
-              <input
-                type="password"
-                value={loginData.password}
-                onChange={(event) => {
-                  setLoginData((prev) => ({ ...prev, password: event.target.value }));
-                  if (loginErrors.password) setLoginErrors((prev) => ({ ...prev, password: "" }));
-                }}
-                placeholder="Mindestens 8 Zeichen"
-                required
-              />
-              <FieldError message={loginErrors.password} />
-            </label>
-            <button className="button primary" type="submit">
-              Arbeitsbereich öffnen
-            </button>
-            <p className="micro-copy">Die Sitzung wird nur lokal im Browser gespeichert und kann jederzeit beendet werden.</p>
-          </form>
+            <form className={`auth-form${authTab === "login" ? " is-visible" : ""}`} onSubmit={handleLogin}>
+              <label>
+                E-Mail
+                <input
+                  type="email"
+                  value={loginData.email}
+                  onChange={(event) => {
+                    setLoginData((prev) => ({ ...prev, email: event.target.value }));
+                    if (loginErrors.email) setLoginErrors((prev) => ({ ...prev, email: "" }));
+                  }}
+                  placeholder="name@unternehmen.de"
+                  required
+                />
+                <FieldError message={loginErrors.email} />
+              </label>
+              <label>
+                Passwort
+                <input
+                  type="password"
+                  value={loginData.password}
+                  onChange={(event) => {
+                    setLoginData((prev) => ({ ...prev, password: event.target.value }));
+                    if (loginErrors.password) setLoginErrors((prev) => ({ ...prev, password: "" }));
+                  }}
+                  placeholder="Mindestens 8 Zeichen"
+                  required
+                />
+                <FieldError message={loginErrors.password} />
+              </label>
+              <button className="button primary" type="submit">
+                Arbeitsbereich öffnen
+              </button>
+              <p className="micro-copy">Die Sitzung wird nur lokal im Browser gespeichert und kann jederzeit beendet werden.</p>
+            </form>
 
-          <form className={`auth-form${authTab === "register" ? " is-visible" : ""}`} onSubmit={handleRegister}>
-            <label>
-              Verantwortliche Person
-              <input
-                type="text"
-                value={registerData.name}
-                onChange={(event) => {
-                  setRegisterData((prev) => ({ ...prev, name: event.target.value }));
-                  if (registerErrors.name) setRegisterErrors((prev) => ({ ...prev, name: "" }));
-                }}
-                placeholder="Vor- und Nachname"
-                required
-              />
-              <FieldError message={registerErrors.name} />
-            </label>
-            <label>
-              E-Mail
-              <input
-                type="email"
-                value={registerData.email}
-                onChange={(event) => {
-                  setRegisterData((prev) => ({ ...prev, email: event.target.value }));
-                  if (registerErrors.email) setRegisterErrors((prev) => ({ ...prev, email: "" }));
-                }}
-                placeholder="name@unternehmen.de"
-                required
-              />
-              <FieldError message={registerErrors.email} />
-            </label>
-            <label>
-              Passwort
-              <input
-                type="password"
-                value={registerData.password}
-                onChange={(event) => {
-                  setRegisterData((prev) => ({ ...prev, password: event.target.value }));
-                  if (registerErrors.password) setRegisterErrors((prev) => ({ ...prev, password: "" }));
-                }}
-                placeholder="Mindestens 8 Zeichen und eine Ziffer"
-                required
-              />
-              <FieldError message={registerErrors.password} />
-            </label>
-            <button className="button primary" type="submit">
-              Lokalen Arbeitsbereich anlegen
-            </button>
-            <p className="micro-copy">Kein externer Identity-Dienst. Zugangsdaten bleiben ausschließlich in diesem Browser gespeichert.</p>
-          </form>
+            <form className={`auth-form${authTab === "register" ? " is-visible" : ""}`} onSubmit={handleRegister}>
+              <label>
+                Verantwortliche Person
+                <input
+                  type="text"
+                  value={registerData.name}
+                  onChange={(event) => {
+                    setRegisterData((prev) => ({ ...prev, name: event.target.value }));
+                    if (registerErrors.name) setRegisterErrors((prev) => ({ ...prev, name: "" }));
+                  }}
+                  placeholder="Vor- und Nachname"
+                  required
+                />
+                <FieldError message={registerErrors.name} />
+              </label>
+              <label>
+                E-Mail
+                <input
+                  type="email"
+                  value={registerData.email}
+                  onChange={(event) => {
+                    setRegisterData((prev) => ({ ...prev, email: event.target.value }));
+                    if (registerErrors.email) setRegisterErrors((prev) => ({ ...prev, email: "" }));
+                  }}
+                  placeholder="name@unternehmen.de"
+                  required
+                />
+                <FieldError message={registerErrors.email} />
+              </label>
+              <label>
+                Passwort
+                <input
+                  type="password"
+                  value={registerData.password}
+                  onChange={(event) => {
+                    setRegisterData((prev) => ({ ...prev, password: event.target.value }));
+                    if (registerErrors.password) setRegisterErrors((prev) => ({ ...prev, password: "" }));
+                  }}
+                  placeholder="Mindestens 8 Zeichen und eine Ziffer"
+                  required
+                />
+                <FieldError message={registerErrors.password} />
+              </label>
+              <button className="button primary" type="submit">
+                Lokalen Arbeitsbereich anlegen
+              </button>
+              <p className="micro-copy">Kein externer Identity-Dienst. Zugangsdaten bleiben ausschließlich in diesem Browser gespeichert.</p>
+            </form>
 
-          <p className={`auth-feedback${authFeedback.type ? ` ${authFeedback.type}` : ""}`}>{authFeedback.message}</p>
+            <p className={`auth-feedback${authFeedback.type ? ` ${authFeedback.type}` : ""}`}>{authFeedback.message}</p>
+          </section>
         </section>
 
         <div className={`toast${toast ? " visible" : ""}`}>{toast}</div>
