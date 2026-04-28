@@ -14,6 +14,12 @@ export async function POST(request: Request) {
     owner?: string;
     accessLevel?: string;
     contactName?: string;
+    customerReference?: string;
+    costLabel?: string;
+    paymentMethod?: string;
+    actionGoal?: string;
+    automationLevel?: string;
+    cancellationStatus?: string;
     rule?: string;
     lastReview?: string;
     status?: string;
@@ -26,18 +32,41 @@ export async function POST(request: Request) {
     owner: normalizeText(body.owner),
     accessLevel: normalizeText(body.accessLevel),
     contactName: normalizeText(body.contactName),
+    customerReference: normalizeText(body.customerReference),
+    costLabel: normalizeText(body.costLabel),
+    paymentMethod: normalizeText(body.paymentMethod),
+    actionGoal: normalizeText(body.actionGoal),
+    automationLevel: normalizeText(body.automationLevel),
+    cancellationStatus: normalizeText(body.cancellationStatus),
     rule: normalizeText(body.rule),
     lastReview: normalizeText(body.lastReview),
     status: normalizeText(body.status),
   };
 
-  if (!Object.values(payload).every(Boolean)) {
-    return NextResponse.json({ error: "Bitte alle Pflichtfelder für das Asset ausfüllen." }, { status: 400 });
+  const requiredFields = [
+    payload.name,
+    payload.provider,
+    payload.category,
+    payload.owner,
+    payload.accessLevel,
+    payload.contactName,
+    payload.costLabel,
+    payload.paymentMethod,
+    payload.actionGoal,
+    payload.automationLevel,
+    payload.cancellationStatus,
+    payload.rule,
+    payload.lastReview,
+    payload.status,
+  ];
+
+  if (!requiredFields.every(Boolean)) {
+    return NextResponse.json({ error: "Bitte alle Pflichtfelder für den Vertrag ausfüllen." }, { status: 400 });
   }
 
   if (!hasMinLength(payload.name, 3) || !hasMinLength(payload.provider, 2)) {
     return NextResponse.json(
-      { error: "Asset-Bezeichnung und Anbieter müssen aussagekräftig erfasst werden." },
+      { error: "Vertrag und Anbieter müssen aussagekräftig erfasst werden." },
       { status: 400 },
     );
   }

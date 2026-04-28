@@ -30,6 +30,10 @@ function isLockedError(error: unknown) {
   );
 }
 
+function isDuplicateColumnError(error: unknown) {
+  return error instanceof Error && error.message.includes("duplicate column name");
+}
+
 function withRetry<T>(operation: () => T, retries = 25, delayMs = 40): T {
   let lastError: unknown;
   for (let attempt = 0; attempt < retries; attempt += 1) {
@@ -64,9 +68,16 @@ withRetry(() =>
     owner TEXT NOT NULL,
     access_level TEXT NOT NULL,
     contact_name TEXT NOT NULL,
+    customer_reference TEXT NOT NULL DEFAULT '',
+    cost_label TEXT NOT NULL DEFAULT '',
+    payment_method TEXT NOT NULL DEFAULT '',
+    action_goal TEXT NOT NULL DEFAULT 'Prüfen',
+    automation_level TEXT NOT NULL DEFAULT 'Manuelle Prüfung',
+    cancellation_status TEXT NOT NULL DEFAULT 'Angaben fehlen',
     rule TEXT NOT NULL,
     last_review TEXT NOT NULL,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    is_example INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS contacts (
@@ -79,7 +90,8 @@ withRetry(() =>
     scope TEXT NOT NULL,
     verification_status TEXT NOT NULL,
     response_expectation TEXT NOT NULL,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    is_example INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS vault_items (
@@ -90,7 +102,8 @@ withRetry(() =>
     status TEXT NOT NULL,
     retention TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    summary TEXT NOT NULL
+    summary TEXT NOT NULL,
+    is_example INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS requests (
@@ -102,7 +115,8 @@ withRetry(() =>
     evidence_status TEXT NOT NULL,
     status TEXT NOT NULL,
     submitted_at TEXT NOT NULL,
-    next_step TEXT NOT NULL
+    next_step TEXT NOT NULL,
+    is_example INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS checklist_items (
@@ -110,7 +124,8 @@ withRetry(() =>
     title TEXT NOT NULL,
     owner TEXT NOT NULL,
     due_label TEXT NOT NULL,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    is_example INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS activity_log (
@@ -118,7 +133,8 @@ withRetry(() =>
     kind TEXT NOT NULL,
     title TEXT NOT NULL,
     detail TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    is_example INTEGER NOT NULL DEFAULT 0
   );
 `),
 );
@@ -131,6 +147,18 @@ function hasColumn(table: string, column: string) {
 function recreateTable(table: string, createSql: string) {
   withRetry(() => db.exec(`DROP TABLE IF EXISTS ${table};`));
   withRetry(() => db.exec(createSql));
+}
+
+function addColumnIfMissing(table: string, column: string, definition: string) {
+  if (hasColumn(table, column)) return;
+
+  try {
+    withRetry(() => db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`));
+  } catch (error) {
+    if (!isDuplicateColumnError(error)) {
+      throw error;
+    }
+  }
 }
 
 function runMigrations() {
@@ -146,9 +174,16 @@ function runMigrations() {
           owner TEXT NOT NULL,
           access_level TEXT NOT NULL,
           contact_name TEXT NOT NULL,
+          customer_reference TEXT NOT NULL DEFAULT '',
+          cost_label TEXT NOT NULL DEFAULT '',
+          payment_method TEXT NOT NULL DEFAULT '',
+          action_goal TEXT NOT NULL DEFAULT 'Prüfen',
+          automation_level TEXT NOT NULL DEFAULT 'Manuelle Prüfung',
+          cancellation_status TEXT NOT NULL DEFAULT 'Angaben fehlen',
           rule TEXT NOT NULL,
           last_review TEXT NOT NULL,
-          status TEXT NOT NULL
+          status TEXT NOT NULL,
+          is_example INTEGER NOT NULL DEFAULT 0
         );
       `,
     );
@@ -168,7 +203,8 @@ function runMigrations() {
           scope TEXT NOT NULL,
           verification_status TEXT NOT NULL,
           response_expectation TEXT NOT NULL,
-          status TEXT NOT NULL
+          status TEXT NOT NULL,
+          is_example INTEGER NOT NULL DEFAULT 0
         );
       `,
     );
@@ -187,11 +223,151 @@ function runMigrations() {
           evidence_status TEXT NOT NULL,
           status TEXT NOT NULL,
           submitted_at TEXT NOT NULL,
-          next_step TEXT NOT NULL
+          next_step TEXT NOT NULL,
+          is_example INTEGER NOT NULL DEFAULT 0
         );
       `,
     );
   }
+
+  const exampleTables = ["assets", "contacts", "vault_items", "requests", "checklist_items", "activity_log"];
+  exampleTables.forEach((table) => {
+    addColumnIfMissing(table, "is_example", "INTEGER NOT NULL DEFAULT 0");
+  });
+
+  const assetColumns = [
+    ["customer_reference", "TEXT NOT NULL DEFAULT ''"],
+    ["cost_label", "TEXT NOT NULL DEFAULT ''"],
+    ["payment_method", "TEXT NOT NULL DEFAULT ''"],
+    ["action_goal", "TEXT NOT NULL DEFAULT 'Prüfen'"],
+    ["automation_level", "TEXT NOT NULL DEFAULT 'Manuelle Prüfung'"],
+    ["cancellation_status", "TEXT NOT NULL DEFAULT 'Angaben fehlen'"],
+  ] as const;
+
+  assetColumns.forEach(([column, definition]) => addColumnIfMissing("assets", column, definition));
+
+  markSeedRowsAsExamples();
+}
+
+function markSeedRowsAsExamples() {
+  withRetry(() =>
+    db.exec(`
+      UPDATE assets
+      SET is_example = 1
+      WHERE name IN ('Primäres E-Mail-Konto', 'Banking-Übersicht', 'Apple-ID und Geräte', 'Webhosting und Domains');
+
+      UPDATE assets
+      SET
+        action_goal = CASE WHEN action_goal = '' OR action_goal IS NULL THEN 'Kündigen' ELSE action_goal END,
+        automation_level = CASE WHEN automation_level = '' OR automation_level IS NULL THEN 'Kündigungsschreiben vorbereitet' ELSE automation_level END,
+        cancellation_status = CASE WHEN cancellation_status = '' OR cancellation_status IS NULL THEN 'Angaben fehlen' ELSE cancellation_status END,
+        customer_reference = CASE WHEN customer_reference = '' OR customer_reference IS NULL THEN 'Beispiel-Kundennummer ergänzen' ELSE customer_reference END,
+        cost_label = CASE WHEN cost_label = '' OR cost_label IS NULL THEN 'ca. 12 EUR / Monat' ELSE cost_label END,
+        payment_method = CASE WHEN payment_method = '' OR payment_method IS NULL THEN 'SEPA / Karte prüfen' ELSE payment_method END;
+
+      UPDATE contacts
+      SET is_example = 1
+      WHERE name IN ('Anna Weber', 'Dr. Lena Vogt', 'Jonas Immler', 'Mara Kühn');
+
+      UPDATE contacts
+      SET
+        name = CASE name
+          WHEN 'Anna Weber' THEN 'Hauptkontakt'
+          WHEN 'Dr. Lena Vogt' THEN 'Rechtsbeistand'
+          WHEN 'Jonas Immler' THEN 'Familienkontakt'
+          WHEN 'Mara Kühn' THEN 'Business-Kontakt'
+          ELSE name
+        END,
+        email = CASE name
+          WHEN 'Anna Weber' THEN 'hauptkontakt@example.de'
+          WHEN 'Dr. Lena Vogt' THEN 'rechtsbeistand@example.de'
+          WHEN 'Jonas Immler' THEN 'familie@example.de'
+          WHEN 'Mara Kühn' THEN 'business@example.de'
+          ELSE email
+        END,
+        phone = CASE name
+          WHEN 'Anna Weber' THEN '+49 000 000000'
+          WHEN 'Dr. Lena Vogt' THEN '+49 000 000001'
+          WHEN 'Jonas Immler' THEN '+49 000 000002'
+          WHEN 'Mara Kühn' THEN '+49 000 000003'
+          ELSE phone
+        END,
+        relation = CASE name
+          WHEN 'Anna Weber' THEN 'Private Vertrauensperson'
+          WHEN 'Dr. Lena Vogt' THEN 'Rechtliche Prüfung'
+          WHEN 'Jonas Immler' THEN 'Familienrolle'
+          WHEN 'Mara Kühn' THEN 'Betriebliche Rolle'
+          ELSE relation
+        END
+      WHERE name IN ('Anna Weber', 'Dr. Lena Vogt', 'Jonas Immler', 'Mara Kühn');
+
+      UPDATE assets
+      SET contact_name = CASE contact_name
+        WHEN 'Anna Weber' THEN 'Hauptkontakt'
+        WHEN 'Dr. Lena Vogt' THEN 'Rechtsbeistand'
+        WHEN 'Jonas Immler' THEN 'Familienkontakt'
+        WHEN 'Mara Kühn' THEN 'Business-Kontakt'
+        ELSE contact_name
+      END;
+
+      UPDATE vault_items
+      SET is_example = 1
+      WHERE title IN (
+        'Testament und Nachlassverfügung',
+        'Notfallbrief an Familie',
+        'Betriebsfortführung: Zugangspaket',
+        'Liste physischer Schließfächer'
+      );
+
+      UPDATE requests
+      SET is_example = 1
+      WHERE label IN ('REQ-2026-104', 'REQ-2026-103', 'REQ-2026-102');
+
+      UPDATE requests
+      SET
+        requester_name = CASE requester_name
+          WHEN 'Anna Weber' THEN 'Hauptkontakt'
+          WHEN 'Jonas Immler' THEN 'Familienkontakt'
+          WHEN 'Mara Kühn' THEN 'Business-Kontakt'
+          ELSE requester_name
+        END,
+        relation = CASE requester_name
+          WHEN 'Anna Weber' THEN 'Private Vertrauensperson'
+          WHEN 'Jonas Immler' THEN 'Familienrolle'
+          WHEN 'Mara Kühn' THEN 'Betriebliche Rolle'
+          ELSE relation
+        END;
+
+      UPDATE checklist_items
+      SET owner = CASE owner
+        WHEN 'Anna Weber' THEN 'Kontakt'
+        WHEN 'Mara Kühn' THEN 'Kontakt'
+        ELSE owner
+      END;
+
+      UPDATE activity_log
+      SET is_example = 1
+      WHERE title IN (
+        'Notfallbrief aktualisiert',
+        'Anfrage REQ-2026-104 geprüft',
+        'Mara Kühn bestätigt',
+        'Hosting-Runbook ergänzt'
+      );
+
+      UPDATE activity_log
+      SET
+        title = REPLACE(title, 'Mara Kühn', 'Business-Kontakt'),
+        detail = REPLACE(
+          REPLACE(
+            REPLACE(detail, 'Mara Kühn', 'Business-Kontakt'),
+            'Anna Weber',
+            'Hauptkontakt'
+          ),
+          'Jonas Immler',
+          'Familienkontakt'
+        );
+    `),
+  );
 }
 
 runMigrations();
@@ -212,66 +388,39 @@ function nowLabel() {
 function seed() {
   if (countRows("assets") === 0) {
     const insert = db.prepare(
-      "INSERT INTO assets (name, provider, category, owner, access_level, contact_name, rule, last_review, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO assets (name, provider, category, owner, access_level, contact_name, customer_reference, cost_label, payment_method, action_goal, automation_level, cancellation_status, rule, last_review, status, is_example) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
     );
     [
       [
-        "Primäres E-Mail-Konto",
-        "Google Workspace",
-        "Kommunikation",
-        "Simon Immler",
-        "Executor + Rechtsbeistand",
-        "Anna Weber",
-        "Freigabe erst nach validiertem Nachweis und Vier-Augen-Prüfung",
-        "12.04.2026",
-        "Aktiv",
-      ],
-      [
-        "Banking-Übersicht",
-        "N26 / CSV-Archiv",
-        "Finanzen",
-        "Simon Immler",
-        "Nur Executor",
-        "Dr. Lena Vogt",
-        "Nur Leserechte, keine Einzeltransaktionen ohne Testament",
-        "08.04.2026",
-        "Aktiv",
-      ],
-      [
-        "Apple-ID und Geräte",
-        "Apple",
-        "Geräte",
-        "Simon Immler",
-        "Familie nach Admin-Freigabe",
-        "Jonas Immler",
-        "Zugangscodes separat im Tresor, Geräte erst nach Bestandsaufnahme",
-        "03.04.2026",
-        "Prüfung fällig",
-      ],
-      [
         "Webhosting und Domains",
         "Hetzner / Cloudflare",
-        "Geschäftsbetrieb",
+        "Laufender Vertrag",
         "Simon Immler",
-        "Continuity-Team",
-        "Mara Kühn",
-        "Domainverlängerung 12 Monate sichern, danach Übergabeentscheidung",
-        "11.04.2026",
-        "Aktiv",
+        "Executor + Verwalter",
+        "Hauptkontakt",
+        "KD-123456",
+        "18 EUR / Monat",
+        "SEPA-Lastschrift",
+        "Kündigen",
+        "Kündigungsschreiben vorbereitet",
+        "Bereit",
+        "Nach Sterbeurkunde Anbieter informieren, Domainlaufzeit prüfen und Hosting fristgerecht kündigen.",
+        "12.04.2026",
+        "Kündigungsbereit",
       ],
-    ].forEach((asset) => withRetry(() => insert.run(...asset)));
+    ].slice(0, 1).forEach((asset) => withRetry(() => insert.run(...asset)));
   }
 
   if (countRows("contacts") === 0) {
     const insert = db.prepare(
-      "INSERT INTO contacts (name, relation, email, phone, role, scope, verification_status, response_expectation, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO contacts (name, relation, email, phone, role, scope, verification_status, response_expectation, status, is_example) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
     );
     [
       [
-        "Anna Weber",
-        "Ehepartnerin",
-        "anna.weber@example.de",
-        "+49 171 555 0142",
+        "Hauptkontakt",
+        "Private Vertrauensperson",
+        "hauptkontakt@example.de",
+        "+49 000 000000",
         "Hauptexecutorin",
         "Privatkonten, Kommunikation, Geräte",
         "Identität bestätigt",
@@ -279,10 +428,10 @@ function seed() {
         "Aktiv",
       ],
       [
-        "Dr. Lena Vogt",
         "Rechtsbeistand",
-        "kanzlei.vogt@example.de",
-        "+49 89 555 7788",
+        "Rechtsbeistand",
+        "rechtsbeistand@example.de",
+        "+49 000 000001",
         "Rechtliche Freigabe",
         "Testament, Vollmachten, Nachweise",
         "Kanzleidaten verifiziert",
@@ -290,10 +439,10 @@ function seed() {
         "Aktiv",
       ],
       [
-        "Jonas Immler",
-        "Bruder",
-        "jonas.immler@example.de",
-        "+49 173 555 6611",
+        "Familienkontakt",
+        "Familienrolle",
+        "familie@example.de",
+        "+49 000 000002",
         "Familienkontakt",
         "Persönliche Hinweise, Erinnerungen, Geräteabholung",
         "Einladung offen",
@@ -301,22 +450,22 @@ function seed() {
         "Ausstehend",
       ],
       [
-        "Mara Kühn",
-        "Geschäftspartnerin",
-        "mara.kuehn@example.de",
-        "+49 40 555 2019",
+        "Business-Kontakt",
+        "Betriebliche Rolle",
+        "business@example.de",
+        "+49 000 000003",
         "Business Continuity",
         "Domains, Hosting, laufende Verträge",
         "Videoident abgeschlossen",
         "Reaktion innerhalb von 4 Stunden",
         "Aktiv",
       ],
-    ].forEach((contact) => withRetry(() => insert.run(...contact)));
+    ].slice(0, 1).forEach((contact) => withRetry(() => insert.run(...contact)));
   }
 
   if (countRows("vault_items") === 0) {
     const insert = db.prepare(
-      "INSERT INTO vault_items (title, category, visibility, status, retention, updated_at, summary) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO vault_items (title, category, visibility, status, retention, updated_at, summary, is_example) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
     );
     [
       [
@@ -355,18 +504,18 @@ function seed() {
         "05.04.2026",
         "Standorte, Vertragsnummern und notwendige Nachweise für die Öffnung.",
       ],
-    ].forEach((item) => withRetry(() => insert.run(...item)));
+    ].slice(0, 1).forEach((item) => withRetry(() => insert.run(...item)));
   }
 
   if (countRows("requests") === 0) {
     const insert = db.prepare(
-      "INSERT INTO requests (label, requester_name, relation, scope, evidence_status, status, submitted_at, next_step) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO requests (label, requester_name, relation, scope, evidence_status, status, submitted_at, next_step, is_example) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
     );
     [
       [
         "REQ-2026-104",
-        "Anna Weber",
-        "Ehepartnerin",
+        "Hauptkontakt",
+        "Private Vertrauensperson",
         "Kommunikation + persönliche Hinweise",
         "Sterbeurkunde geprüft",
         "In Prüfung",
@@ -375,8 +524,8 @@ function seed() {
       ],
       [
         "REQ-2026-103",
-        "Mara Kühn",
-        "Geschäftspartnerin",
+        "Business-Kontakt",
+        "Betriebliche Rolle",
         "Domains und Hosting",
         "Handelsregisterbezug bestätigt",
         "Freigegeben",
@@ -385,32 +534,32 @@ function seed() {
       ],
       [
         "REQ-2026-102",
-        "Jonas Immler",
-        "Bruder",
+        "Familienkontakt",
+        "Familienrolle",
         "Persönliche Nachricht",
         "Nachweis unvollständig",
         "Rückfrage gesendet",
         "09.04.2026, 09:05",
         "Zusätzlicher Identitätsnachweis angefordert",
       ],
-    ].forEach((request) => withRetry(() => insert.run(...request)));
+    ].slice(0, 1).forEach((request) => withRetry(() => insert.run(...request)));
   }
 
   if (countRows("checklist_items") === 0) {
     const insert = db.prepare(
-      "INSERT INTO checklist_items (title, owner, due_label, status) VALUES (?, ?, ?, ?)",
+      "INSERT INTO checklist_items (title, owner, due_label, status, is_example) VALUES (?, ?, ?, ?, 0)",
     );
     [
       ["Begünstigte Rollen final prüfen", "Eigentümer", "diese Woche", "Erledigt"],
       ["Letzte Passwort-Übersicht abgleichen", "Eigentümer", "heute", "Offen"],
-      ["Business-Continuity-Paket bestätigen", "Mara Kühn", "bis 20.04.2026", "In Arbeit"],
-      ["Notfallbrief final verschließen", "Anna Weber", "bis 22.04.2026", "Offen"],
+      ["Business-Continuity-Paket bestätigen", "Kontakt", "bis 20.04.2026", "In Arbeit"],
+      ["Kundennummern für kündigungsrelevante Verträge ergänzen", "Eigentümer", "bis 22.04.2026", "Offen"],
     ].forEach((item) => withRetry(() => insert.run(...item)));
   }
 
   if (countRows("activity_log") === 0) {
     const insert = db.prepare(
-      "INSERT INTO activity_log (kind, title, detail, created_at) VALUES (?, ?, ?, ?)",
+      "INSERT INTO activity_log (kind, title, detail, created_at, is_example) VALUES (?, ?, ?, ?, 1)",
     );
     [
       [
@@ -427,7 +576,7 @@ function seed() {
       ],
       [
         "contact",
-        "Mara Kühn bestätigt",
+        "Business-Kontakt bestätigt",
         "Videoident abgeschlossen, Business-Continuity-Rolle aktiviert.",
         "gestern",
       ],
@@ -437,7 +586,7 @@ function seed() {
         "Neue Ansprechpartner für Domain-Transfers dokumentiert.",
         "vor 3 Tagen",
       ],
-    ].forEach((entry) => withRetry(() => insert.run(...entry)));
+    ].slice(0, 1).forEach((entry) => withRetry(() => insert.run(...entry)));
   }
 }
 
@@ -450,21 +599,29 @@ function addActivity(kind: string, title: string, detail: string) {
   );
 }
 
+type ExampleRow = { isExample: number };
+
+function hideExamplesWhenUserDataExists<T extends ExampleRow>(rows: T[]) {
+  const userRows = rows.filter((row) => row.isExample === 0);
+  return userRows.length > 0 ? userRows : rows.slice(0, 1);
+}
+
 export function listAssets() {
-  return withRetry(
+  const rows = withRetry(
     () =>
       db
         .prepare(
-          "SELECT id, name, provider, category, owner, access_level AS accessLevel, contact_name AS contactName, rule, last_review AS lastReview, status FROM assets ORDER BY id DESC",
+          "SELECT id, name, provider, category, owner, access_level AS accessLevel, contact_name AS contactName, customer_reference AS customerReference, cost_label AS costLabel, payment_method AS paymentMethod, action_goal AS actionGoal, automation_level AS automationLevel, cancellation_status AS cancellationStatus, rule, last_review AS lastReview, status, is_example AS isExample FROM assets WHERE name NOT LIKE 'Test Button%' ORDER BY id DESC",
         )
-        .all() as AssetRecord[],
+        .all() as Array<AssetRecord & ExampleRow>,
   );
+  return hideExamplesWhenUserDataExists(rows);
 }
 
 export function createAsset(input: Omit<AssetRecord, "id">) {
   withRetry(() =>
     db.prepare(
-      "INSERT INTO assets (name, provider, category, owner, access_level, contact_name, rule, last_review, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO assets (name, provider, category, owner, access_level, contact_name, customer_reference, cost_label, payment_method, action_goal, automation_level, cancellation_status, rule, last_review, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ).run(
       input.name,
       input.provider,
@@ -472,25 +629,32 @@ export function createAsset(input: Omit<AssetRecord, "id">) {
       input.owner,
       input.accessLevel,
       input.contactName,
+      input.customerReference,
+      input.costLabel,
+      input.paymentMethod,
+      input.actionGoal,
+      input.automationLevel,
+      input.cancellationStatus,
       input.rule,
       input.lastReview,
       input.status,
     ),
   );
 
-  addActivity("asset", "Neues Asset angelegt", `${input.name} wurde mit Zugriffsebene "${input.accessLevel}" erfasst.`);
+  addActivity("asset", "Neuer Kündigungsplan angelegt", `${input.name} wurde mit Ziel "${input.actionGoal}" und Status "${input.cancellationStatus}" erfasst.`);
   return listAssets()[0];
 }
 
 export function listContacts() {
-  return withRetry(
+  const rows = withRetry(
     () =>
       db
         .prepare(
-          "SELECT id, name, relation, email, phone, role, scope, verification_status AS verificationStatus, response_expectation AS responseExpectation, status FROM contacts ORDER BY id DESC",
+          "SELECT id, name, relation, email, phone, role, scope, verification_status AS verificationStatus, response_expectation AS responseExpectation, status, is_example AS isExample FROM contacts WHERE name != 'QA Person' ORDER BY id DESC",
         )
-        .all() as ContactRecord[],
+        .all() as Array<ContactRecord & ExampleRow>,
   );
+  return hideExamplesWhenUserDataExists(rows);
 }
 
 export function createContact(input: Omit<ContactRecord, "id">) {
@@ -515,14 +679,15 @@ export function createContact(input: Omit<ContactRecord, "id">) {
 }
 
 export function listVaultItems() {
-  return withRetry(
+  const rows = withRetry(
     () =>
       db
         .prepare(
-          "SELECT id, title, category, visibility, status, retention, updated_at AS updatedAt, summary FROM vault_items ORDER BY id DESC",
+          "SELECT id, title, category, visibility, status, retention, updated_at AS updatedAt, summary, is_example AS isExample FROM vault_items WHERE title NOT LIKE 'Test Button%' ORDER BY id DESC",
         )
-        .all() as VaultRecord[],
+        .all() as Array<VaultRecord & ExampleRow>,
   );
+  return hideExamplesWhenUserDataExists(rows);
 }
 
 export function createVaultItem(input: Omit<VaultRecord, "id">) {
@@ -545,14 +710,15 @@ export function createVaultItem(input: Omit<VaultRecord, "id">) {
 }
 
 export function listRequests() {
-  return withRetry(
+  const rows = withRetry(
     () =>
       db
         .prepare(
-          "SELECT id, label, requester_name AS requesterName, relation, scope, evidence_status AS evidenceStatus, status, submitted_at AS submittedAt, next_step AS nextStep FROM requests ORDER BY id DESC",
+          "SELECT id, label, requester_name AS requesterName, relation, scope, evidence_status AS evidenceStatus, status, submitted_at AS submittedAt, next_step AS nextStep, is_example AS isExample FROM requests WHERE label NOT LIKE 'Test Button%' ORDER BY id DESC",
         )
-        .all() as RequestRecord[],
+        .all() as Array<RequestRecord & ExampleRow>,
   );
+  return hideExamplesWhenUserDataExists(rows);
 }
 
 export function createRequest(input: Omit<RequestRecord, "id">) {
@@ -627,12 +793,13 @@ export function updateChecklistStatus(id: number, status: string) {
 }
 
 export function listActivities() {
-  return withRetry(
+  const rows = withRetry(
     () =>
       db
         .prepare(
-          "SELECT id, kind, title, detail, created_at AS createdAt FROM activity_log ORDER BY id DESC LIMIT 10",
+          "SELECT id, kind, title, detail, created_at AS createdAt, is_example AS isExample FROM activity_log WHERE title NOT LIKE '%Test Button%' AND title NOT LIKE '%QA Person%' AND detail NOT LIKE '%Test Button%' AND detail NOT LIKE '%QA Person%' ORDER BY id DESC LIMIT 10",
         )
-        .all() as ActivityRecord[],
+        .all() as Array<ActivityRecord & ExampleRow>,
   );
+  return hideExamplesWhenUserDataExists(rows);
 }

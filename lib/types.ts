@@ -6,12 +6,19 @@ export type User = {
 
 export type AssetRecord = {
   id: number;
+  isExample?: number;
   name: string;
   provider: string;
   category: string;
   owner: string;
   accessLevel: string;
   contactName: string;
+  customerReference: string;
+  costLabel: string;
+  paymentMethod: string;
+  actionGoal: string;
+  automationLevel: string;
+  cancellationStatus: string;
   rule: string;
   lastReview: string;
   status: string;
@@ -19,6 +26,7 @@ export type AssetRecord = {
 
 export type ContactRecord = {
   id: number;
+  isExample?: number;
   name: string;
   relation: string;
   email: string;
@@ -32,6 +40,7 @@ export type ContactRecord = {
 
 export type VaultRecord = {
   id: number;
+  isExample?: number;
   title: string;
   category: string;
   visibility: string;
@@ -43,6 +52,7 @@ export type VaultRecord = {
 
 export type RequestRecord = {
   id: number;
+  isExample?: number;
   label: string;
   requesterName: string;
   relation: string;
@@ -63,6 +73,7 @@ export type ChecklistRecord = {
 
 export type ActivityRecord = {
   id: number;
+  isExample?: number;
   kind: string;
   title: string;
   detail: string;

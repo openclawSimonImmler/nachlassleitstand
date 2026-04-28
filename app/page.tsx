@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { FormEvent, startTransition, useDeferredValue, useEffect, useState } from "react";
+import { FormEvent, startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
 import type {
   ActivityRecord,
   AssetRecord,
@@ -21,13 +21,68 @@ const STORAGE_KEYS = {
 
 const navItems = [
   { id: "dashboard", label: "Leitstand", short: "01" },
-  { id: "assets", label: "Assets", short: "02" },
+  { id: "assets", label: "Verträge", short: "02" },
   { id: "vault", label: "Tresor", short: "03" },
-  { id: "contacts", label: "Vertrauenspersonen", short: "04" },
+  { id: "contacts", label: "Kontakte", short: "04" },
   { id: "requests", label: "Anfragen", short: "05" },
-  { id: "workflow", label: "Abläufe", short: "06" },
-  { id: "settings", label: "Arbeitsbereich", short: "07" },
+  { id: "settlement", label: "Abwicklung", short: "06" },
+  { id: "workflow", label: "Abläufe", short: "07" },
+  { id: "settings", label: "Arbeitsbereich", short: "08" },
 ] as const;
+
+const viewHeroContent: Record<
+  (typeof navItems)[number]["id"],
+  { eyebrow: string; title: string; copy: string; search: string }
+> = {
+  dashboard: {
+    eyebrow: "Dein Leitstand",
+    title: "Was im Ernstfall automatisch passiert.",
+    copy: "Sieh sofort, welche Verträge kündigungsbereit sind, wo Angaben fehlen und welche Aufgaben Angehörige entlasten.",
+    search: "Vertrag, Kontakt, Dokument oder Anfrage suchen",
+  },
+  assets: {
+    eyebrow: "Deine Verträge",
+    title: "Laufende Kosten beenden.",
+    copy: "Halte Anbieter, Kundennummern, Kosten und den Plan für Kündigung, Übertragung oder Prüfung fest.",
+    search: "Vertrag, Anbieter oder Kundennummer suchen",
+  },
+  vault: {
+    eyebrow: "Dein Tresor",
+    title: "Dokumente und Hinweise.",
+    copy: "Sammle wichtige Pakete mit klarer Sichtbarkeit, Aufbewahrung und Freigabe.",
+    search: "Dokument, Kategorie oder Hinweis suchen",
+  },
+  contacts: {
+    eyebrow: "Deine Kontakte",
+    title: "Menschen, denen du vertraust.",
+    copy: "Verwalte Rollen, Zuständigkeiten und erreichbare Ansprechpartner an einem Ort.",
+    search: "Kontakt, Rolle oder Zuständigkeit suchen",
+  },
+  requests: {
+    eyebrow: "Deine Anfragen",
+    title: "Nachweise prüfen.",
+    copy: "Bearbeite eingehende Vorgänge, bevor Freigaben oder Kündigungsprozesse gestartet werden.",
+    search: "Anfrage, Person oder Status suchen",
+  },
+  settlement: {
+    eyebrow: "Abwicklung",
+    title: "Kündigungen steuern.",
+    copy: "Nach bestätigtem Ableben sieht die verwaltende Stelle, was automatisch vorbereitet ist und was manuell bleibt.",
+    search: "Anbieter, Status oder Aufgabe suchen",
+  },
+  workflow: {
+    eyebrow: "Deine Abläufe",
+    title: "Was noch zu tun ist.",
+    copy: "Arbeite die offenen Punkte ab und halte deinen Vorsorge-Stand nachvollziehbar aktuell.",
+    search: "Aufgabe, Kontakt oder Status suchen",
+  },
+  settings: {
+    eyebrow: "Dein Arbeitsbereich",
+    title: "Einstellungen und Export.",
+    copy: "Steuere Startansicht, lokale Sitzung und Sicherung deiner Daten.",
+    search: "Einstellung oder Bereich suchen",
+  },
+};
 
 const requestActionMap: Record<
   string,
@@ -187,6 +242,14 @@ function StatusPill({ children, tone }: { children: string; tone?: string }) {
   return <span className={`status-pill ${tone ?? statusTone(children)}`}>{children}</span>;
 }
 
+function isExampleRecord(record: { isExample?: number }) {
+  return record.isExample === 1;
+}
+
+function ExampleBadge() {
+  return <span className="example-badge">Beispiel</span>;
+}
+
 function MetricCard({
   label,
   value,
@@ -258,6 +321,7 @@ async function readApiMessage(response: Response) {
 }
 
 export default function HomePage() {
+  const landingAuthRef = useRef<HTMLElement | null>(null);
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
   const [authFeedback, setAuthFeedback] = useState(defaultAuthFeedback);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -281,9 +345,15 @@ export default function HomePage() {
   const [assetForm, setAssetForm] = useState({
     name: "",
     provider: "",
-    category: "Kommunikation",
-    accessLevel: "Nur Executor",
+    category: "Laufender Vertrag",
+    accessLevel: "Executor + Verwalter",
     contactName: "",
+    customerReference: "",
+    costLabel: "",
+    paymentMethod: "SEPA-Lastschrift",
+    actionGoal: "Kündigen",
+    automationLevel: "Kündigungsschreiben vorbereitet",
+    cancellationStatus: "Angaben fehlen",
     rule: "",
   });
   const [contactForm, setContactForm] = useState({
@@ -408,18 +478,39 @@ export default function HomePage() {
     }
   }, [contacts, assetForm.contactName]);
 
+  const realAssets = assets.filter((item) => !isExampleRecord(item));
+  const realContacts = contacts.filter((item) => !isExampleRecord(item));
+  const realVaultItems = vaultItems.filter((item) => !isExampleRecord(item));
+  const realRequests = requests.filter((item) => !isExampleRecord(item));
+  const realActivities = activities.filter((item) => !isExampleRecord(item));
+
   const completedChecklist = checklist.filter((item) => item.status === "Erledigt").length;
   const readinessScore = checklist.length === 0 ? 0 : Math.round((completedChecklist / checklist.length) * 100);
-  const activeRequests = requests.filter((item) => !["Freigegeben", "Abgelehnt"].includes(item.status)).length;
-  const activeContacts = contacts.filter((item) => item.status === "Aktiv").length;
+  const activeRequests = realRequests.filter((item) => !["Freigegeben", "Abgelehnt"].includes(item.status)).length;
+  const activeContacts = realContacts.filter((item) => item.status === "Aktiv").length;
   const urgentChecklist = checklist.filter((item) => item.status !== "Erledigt");
   const nextChecklistItem = urgentChecklist[0];
-  const reviewDueAssets = assets.filter((item) => item.status.toLowerCase().includes("fällig")).length;
-  const sealedVaultItems = vaultItems.filter((item) => item.status === "Versiegelt").length;
+  const sealedVaultItems = realVaultItems.filter((item) => item.status === "Versiegelt").length;
+  const cancellableContracts = realAssets.filter((item) => item.actionGoal === "Kündigen");
+  const readyCancellations = cancellableContracts.filter((item) => item.cancellationStatus === "Bereit").length;
+  const missingCancellationInfo = cancellableContracts.filter((item) => item.cancellationStatus === "Angaben fehlen").length;
+  const automatedCancellations = cancellableContracts.filter((item) =>
+    ["Automatisch kündbar", "Kündigungsschreiben vorbereitet"].includes(item.automationLevel),
+  ).length;
 
   const filteredAssets = deferredSearch
     ? assets.filter((item) =>
-        [item.name, item.provider, item.category, item.contactName, item.rule].some((field) =>
+        [
+          item.name,
+          item.provider,
+          item.category,
+          item.contactName,
+          item.customerReference,
+          item.actionGoal,
+          item.automationLevel,
+          item.cancellationStatus,
+          item.rule,
+        ].some((field) =>
           field.toLowerCase().includes(deferredSearch),
         ),
       )
@@ -454,6 +545,14 @@ export default function HomePage() {
 
   function showFeedback(message: string, type: "" | "error" | "success" = "") {
     setAuthFeedback({ message, type });
+  }
+
+  function openLandingAuth(tab: "login" | "register") {
+    setAuthTab(tab);
+    setAuthFeedback(defaultAuthFeedback);
+    window.requestAnimationFrame(() => {
+      landingAuthRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function clearFormErrors() {
@@ -561,20 +660,27 @@ export default function HomePage() {
       owner: currentUser?.name ?? "Eigentümer",
       accessLevel: assetForm.accessLevel,
       contactName: assetForm.contactName.trim(),
+      customerReference: assetForm.customerReference.trim(),
+      costLabel: assetForm.costLabel.trim(),
+      paymentMethod: assetForm.paymentMethod,
+      actionGoal: assetForm.actionGoal,
+      automationLevel: assetForm.automationLevel,
+      cancellationStatus: assetForm.customerReference.trim() ? assetForm.cancellationStatus : "Angaben fehlen",
       rule: assetForm.rule.trim(),
       lastReview: new Intl.DateTimeFormat("de-DE").format(new Date()),
-      status: "Aktiv",
+      status: assetForm.customerReference.trim() ? "Kündigungsbereit" : "Angaben fehlen",
     };
     const nextErrors: Record<string, string> = {};
 
-    if (payload.name.length < 3) nextErrors.name = "Bitte eine präzise Asset-Bezeichnung angeben.";
+    if (payload.name.length < 3) nextErrors.name = "Bitte den Vertrag oder die Verpflichtung benennen.";
     if (payload.provider.length < 2) nextErrors.provider = "Bitte den Anbieter oder das System angeben.";
     if (payload.contactName.length < 3) nextErrors.contactName = "Bitte eine verantwortliche Person hinterlegen.";
+    if (payload.costLabel.length < 2) nextErrors.costLabel = "Bitte Kosten oder Zahlungsrhythmus angeben.";
     if (payload.rule.length < 12) nextErrors.rule = "Die Freigaberegel sollte konkret beschreiben, wann Zugriff zulässig ist.";
 
     setAssetErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
-      setToast("Das Asset ist noch nicht vollständig beschrieben.");
+      setToast("Der Kündigungsplan ist noch nicht vollständig beschrieben.");
       return;
     }
 
@@ -592,13 +698,19 @@ export default function HomePage() {
       setAssetForm({
         name: "",
         provider: "",
-        category: "Kommunikation",
-        accessLevel: "Nur Executor",
+        category: "Laufender Vertrag",
+        accessLevel: "Executor + Verwalter",
         contactName: contacts[0]?.name ?? "",
+        customerReference: "",
+        costLabel: "",
+        paymentMethod: "SEPA-Lastschrift",
+        actionGoal: "Kündigen",
+        automationLevel: "Kündigungsschreiben vorbereitet",
+        cancellationStatus: "Angaben fehlen",
         rule: "",
       });
       setAssetErrors({});
-      await syncAfterMutation("Asset wurde in den geschützten Bestand übernommen.", "assets");
+      await syncAfterMutation("Vertrag wurde mit Kündigungsplan übernommen.", "assets");
     });
   }
 
@@ -792,7 +904,7 @@ export default function HomePage() {
     }
     if (filteredAssets.length > 0) {
       startTransition(() => setCurrentView("assets"));
-      setToast(`${filteredAssets.length} passende Assets geöffnet.`);
+      setToast(`${filteredAssets.length} passende Verträge geöffnet.`);
       return;
     }
     if (filteredContacts.length > 0) {
@@ -816,10 +928,13 @@ export default function HomePage() {
       workspaceView: currentView,
       summary: {
         readinessScore,
-        assets: assets.length,
-        contacts: contacts.length,
-        vaultItems: vaultItems.length,
-        requests: requests.length,
+        assets: realAssets.length,
+        contacts: realContacts.length,
+        vaultItems: realVaultItems.length,
+        requests: realRequests.length,
+        readyCancellations,
+        missingCancellationInfo,
+        automatedCancellations,
       },
       assets,
       contacts,
@@ -841,13 +956,15 @@ export default function HomePage() {
 
   const navBadges: Record<(typeof navItems)[number]["id"], string | null> = {
     dashboard: nextChecklistItem ? "Priorität" : null,
-    assets: reviewDueAssets > 0 ? `${reviewDueAssets} fällig` : null,
+    assets: missingCancellationInfo > 0 ? `${missingCancellationInfo} unvollständig` : readyCancellations > 0 ? `${readyCancellations} bereit` : null,
     vault: sealedVaultItems > 0 ? `${sealedVaultItems} versiegelt` : null,
-    contacts: contacts.length ? `${activeContacts}/${contacts.length}` : null,
+    contacts: realContacts.length ? `${activeContacts}/${realContacts.length}` : null,
     requests: activeRequests > 0 ? `${activeRequests} offen` : null,
+    settlement: readyCancellations > 0 ? `${readyCancellations} kündbar` : null,
     workflow: urgentChecklist.length ? `${urgentChecklist.length} offen` : null,
     settings: lastSyncedAt ? "Lokal" : null,
   };
+  const currentHero = viewHeroContent[currentView];
 
   if (!currentUser) {
     const hasWorkspace = typeof window !== "undefined" && Boolean(window.localStorage.getItem(STORAGE_KEYS.user));
@@ -865,7 +982,7 @@ export default function HomePage() {
             </div>
 
             <div className="landing-topbar-actions">
-              <button className="button ghost" onClick={() => setAuthTab(hasWorkspace ? "login" : "register")} type="button">
+              <button className="button ghost" onClick={() => openLandingAuth(hasWorkspace ? "login" : "register")} type="button">
                 {hasWorkspace ? "Anmelden" : "Einrichten"}
               </button>
             </div>
@@ -873,15 +990,14 @@ export default function HomePage() {
 
           <div className="landing-hero-grid refined">
             <section className="landing-story refined">
-              <div className="auth-badge">Vertraulicher Arbeitsbereich für digitale Nachlassvorsorge</div>
-              <h1>Ein ruhiger, klarer Ort für alles, was im digitalen Nachlass nicht unklar bleiben darf.</h1>
+              <div className="auth-badge">Dein digitaler Nachlass</div>
+              <h1>Alles geordnet, bevor es jemand suchen muss.</h1>
               <p className="subtext landing-copy refined">
-                Nachlassleitstand ordnet Konten, Dokumente, Zuständigkeiten und Freigaben in einem klaren Arbeitsbereich,
-                damit aus verstreuten Informationen ein verlässlicher Übergabeprozess wird.
+                Bereite Verträge, Kündigungen, Dokumente und Kontakte so vor, dass Angehörige später möglichst wenig selbst erledigen müssen.
               </p>
 
               <div className="landing-cta-row">
-                <button className="button primary" onClick={() => setAuthTab(hasWorkspace ? "login" : "register")} type="button">
+                <button className="button primary" onClick={() => openLandingAuth(hasWorkspace ? "login" : "register")} type="button">
                   {hasWorkspace ? "Arbeitsbereich öffnen" : "Arbeitsbereich anlegen"}
                 </button>
               </div>
@@ -897,35 +1013,35 @@ export default function HomePage() {
               <div className="landing-preview-card dark showcase">
                 <div className="landing-preview-head">
                   <div>
-                    <span className="preview-label">Bereitschaftsgrad</span>
+                    <span className="preview-label">Stand</span>
                     <strong>76% strukturiert</strong>
                   </div>
                   <StatusPill tone="positive">Gut vorbereitet</StatusPill>
                 </div>
-                <p>Checklisten, Rollen und Freigaben machen sofort sichtbar, was abgesichert ist und wo noch Entscheidungen fehlen.</p>
+                <p>Sieh sofort, was vorbereitet ist und welche Punkte noch offen sind.</p>
                 <div className="preview-mini-metrics">
                   <div>
-                    <strong>24</strong>
-                    <span>Assets</span>
+                    <strong>12</strong>
+                    <span>Verträge</span>
                   </div>
                   <div>
-                    <strong>8</strong>
-                    <span>Vertrauensrollen</span>
+                    <strong>7</strong>
+                    <span>kündbar</span>
                   </div>
                   <div>
                     <strong>3</strong>
-                    <span>offene Anfragen</span>
+                    <span>fehlen</span>
                   </div>
                 </div>
               </div>
 
               <div className="landing-preview-card slim-list">
-                <span className="preview-label">Wofür der Arbeitsbereich gedacht ist</span>
+                <span className="preview-label">Was du hier sammelst</span>
                 <ul className="landing-list refined">
-                  <li>Digitale Konten und Zugriffsregeln geordnet festhalten</li>
-                  <li>Wichtige Dokumente mit Freigabekontext sauber ablegen</li>
-                  <li>Vertrauenspersonen und Zuständigkeiten klar dokumentieren</li>
-                  <li>Anfragen nachvollziehbar prüfen und entscheiden</li>
+                  <li>Verträge und Kündigungsregeln</li>
+                  <li>Dokumente und persönliche Hinweise</li>
+                  <li>Kontakte und Rollen</li>
+                  <li>Nachweise und Abwicklung</li>
                 </ul>
               </div>
             </aside>
@@ -934,49 +1050,49 @@ export default function HomePage() {
 
         <section className="landing-section landing-metrics refined">
           <article className="metric-card positive">
-            <span>Ein Arbeitsbereich</span>
+            <span>Ein Ort</span>
             <strong>4 Kernmodule</strong>
-            <p>Assets, Tresor, Vertrauensrollen und Freigaben greifen in einem gemeinsamen System ineinander.</p>
+            <p>Verträge, Tresor, Kontakte und Abwicklung arbeiten zusammen.</p>
           </article>
           <article className="metric-card warning">
             <span>Prüfpfad</span>
-            <strong>100% nachvollziehbar</strong>
-            <p>Entscheidungen, Nachweise und nächste Schritte bleiben sauber dokumentiert.</p>
+            <strong>Klar dokumentiert</strong>
+            <p>Nachweise, Kündigungen und Anbieterantworten bleiben nachvollziehbar.</p>
           </article>
           <article className="metric-card neutral">
             <span>Betriebsmodell</span>
-            <strong>Lokal und kontrollierbar</strong>
-            <p>Der aktuelle Stand eignet sich besonders für Demo, Beratung, Pilotbetrieb oder internes Tooling mit bewusst reduziertem Setup.</p>
+            <strong>Lokal</strong>
+            <p>Die Demo arbeitet ohne externen Login und ohne Cloud-Zwang.</p>
           </article>
         </section>
 
         <section className="landing-section landing-features refined">
           <div className="section-header">
             <div>
-              <p className="eyebrow">Produktumfang</p>
-              <h2>Die zentralen Bausteine auf einen Blick</h2>
+              <p className="eyebrow">Module</p>
+              <h2>Was du verwalten kannst</h2>
               <p className="section-copy">
-                Der aktuelle Produktstand konzentriert sich auf die Bereiche, die in der digitalen Vorsorge in der Praxis am schnellsten unübersichtlich werden.
+                Kurz, praktisch und auf das Wesentliche reduziert.
               </p>
             </div>
           </div>
 
           <div className="landing-feature-grid refined">
             <article className="panel landing-feature-card">
-              <h3>Asset-Register</h3>
-              <p>Konten, Systeme und Zugriffsregeln mit Verantwortlichkeiten und Review-Stand geordnet pflegen.</p>
+              <h3>Deine Verträge</h3>
+              <p>Laufende Kosten mit Anbieter, Kundennummer und Kündigungsziel.</p>
             </article>
             <article className="panel landing-feature-card">
-              <h3>Dokumententresor</h3>
-              <p>Wichtige Dokumente mit Sichtbarkeit, Aufbewahrung und Freigabekontext geordnet festhalten.</p>
+              <h3>Dein Tresor</h3>
+              <p>Dokumente, Hinweise und Pakete für den Ernstfall.</p>
             </article>
             <article className="panel landing-feature-card">
-              <h3>Vertrauensrollen</h3>
-              <p>Vertrauenspersonen und Zuständigkeiten so festhalten, dass operative Übergaben klar bleiben.</p>
+              <h3>Deine Kontakte</h3>
+              <p>Menschen, Rollen und Zuständigkeiten.</p>
             </article>
             <article className="panel landing-feature-card">
-              <h3>Freigabe-Queue</h3>
-              <p>Anfragen kontrolliert prüfen, Rückfragen dokumentieren und Entscheidungen nachvollziehbar begründen.</p>
+              <h3>Abwicklung</h3>
+              <p>Kündigungen vorbereiten, auslösen und Rückmeldungen dokumentieren.</p>
             </article>
           </div>
         </section>
@@ -985,7 +1101,7 @@ export default function HomePage() {
           <div className="section-header">
             <div>
               <p className="eyebrow">Ablauf</p>
-              <h2>Von verteilten Informationen zu einem klaren Übergabeprozess</h2>
+              <h2>In drei Schritten startklar</h2>
             </div>
           </div>
 
@@ -996,16 +1112,16 @@ export default function HomePage() {
             </div>
             <div>
               <span>2</span>
-              <p>Assets, Dokumente und Vertrauensrollen gemeinsam strukturieren</p>
+              <p>Verträge, Dokumente und Kontakte eintragen</p>
             </div>
             <div>
               <span>3</span>
-              <p>Freigaben, Prüfpfade und Export für den Ernstfall vorbereiten</p>
+              <p>Kündigungsregeln, Nachweise und Export vorbereiten</p>
             </div>
           </div>
         </section>
 
-        <section className="landing-section landing-auth-section refined">
+        <section className="landing-section landing-auth-section refined" ref={landingAuthRef}>
           <section className="auth-panel landing-auth-panel">
             <div className="auth-panel-head">
               <p className="eyebrow">Zugang</p>
@@ -1170,18 +1286,16 @@ export default function HomePage() {
       <section className="main">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Lokale digitale Nachlassverwaltung</p>
-            <h1>Klare Entscheidungen statt verstreuter Notfallinformationen.</h1>
-            <p className="section-copy">
-              Assets, Vertrauensrollen, Dokumententresor und Anfragen werden in einem nachvollziehbaren Arbeitsbereich zusammengeführt.
-            </p>
+            <p className="eyebrow">{currentHero.eyebrow}</p>
+            <h1>{currentHero.title}</h1>
+            <p className="section-copy">{currentHero.copy}</p>
           </div>
 
           <div className="topbar-side">
             <div className="search">
               <input
                 type="text"
-                placeholder="Suche nach Asset, Kontakt, Dokument oder Anfrage"
+                placeholder={currentHero.search}
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
                 onKeyDown={(event) => {
@@ -1241,8 +1355,8 @@ export default function HomePage() {
                 <span>{deferredSearch ? `${pendingSearchMatches} Treffer` : "Keine aktive Suche"}</span>
               </div>
               <div>
-                <strong>Offene Anfragen</strong>
-                <span>{activeRequests}</span>
+                <strong>Kündigungsbereit</strong>
+                <span>{readyCancellations}</span>
               </div>
             </section>
 
@@ -1250,12 +1364,12 @@ export default function HomePage() {
               <>
                 <section className="hero">
                   <div>
-                    <p className="eyebrow">Nächster sinnvoller Schritt</p>
+                    <p className="eyebrow">Nächster Schritt</p>
                     <h2>{nextChecklistItem ? nextChecklistItem.title : "Arbeitsbereich ist aktuell stabil organisiert."}</h2>
                     <p className="section-copy">
                       {nextChecklistItem
                         ? `${nextChecklistItem.owner} ist verantwortlich. Zieltermin: ${nextChecklistItem.dueLabel}.`
-                        : "Alle Kernaufgaben sind abgeschlossen. Nutzen Sie Export und Freigabe-Queue für den operativen Betrieb."}
+                        : "Alle Kernaufgaben sind abgeschlossen. Export und Anfragen bleiben bereit."}
                     </p>
                   </div>
                   <div className="hero-actions">
@@ -1265,20 +1379,28 @@ export default function HomePage() {
                     <button className="button ghost" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
                       Offene Anfragen ansehen
                     </button>
+                    <button className="button ghost" onClick={() => startTransition(() => setCurrentView("settlement"))} type="button">
+                      Abwicklung ansehen
+                    </button>
                   </div>
                 </section>
 
                 <section className="metric-grid">
-                  <MetricCard label="Bereitschaft" value={`${readinessScore}%`} detail="Abgeleitet aus Checkliste, Rollenabdeckung und aktuellen Ständen." tone={readinessScore >= 75 ? "positive" : readinessScore >= 50 ? "warning" : "critical"} />
-                  <MetricCard label="Offene Anfragen" value={activeRequests} detail="Vorgänge mit Bedarf für Prüfung, Rückfrage oder Freigabe." tone={activeRequests > 0 ? "warning" : "positive"} />
-                  <MetricCard label="Bestätigte Vertrauensrollen" value={`${activeContacts}/${contacts.length}`} detail="Nur bestätigte Rollen sollten später operative Zugriffe erhalten." tone={activeContacts === contacts.length ? "positive" : "warning"} />
-                  <MetricCard label="Review fällige Assets" value={reviewDueAssets} detail="Einträge mit überfälligem Prüf- oder Aktualisierungsbedarf." tone={reviewDueAssets > 0 ? "critical" : "positive"} />
+                  <MetricCard label="Bereitschaft" value={`${readinessScore}%`} detail="Fortschritt aus deinen offenen Aufgaben." tone={readinessScore >= 75 ? "positive" : readinessScore >= 50 ? "warning" : "critical"} />
+                  <MetricCard label="Kündigungsbereit" value={readyCancellations} detail="Verträge, die im Ernstfall direkt angestoßen werden können." tone={readyCancellations > 0 ? "positive" : "warning"} />
+                  <MetricCard label="Angaben fehlen" value={missingCancellationInfo} detail="Kündigungen, bei denen Kundennummern oder Details fehlen." tone={missingCancellationInfo > 0 ? "critical" : "positive"} />
+                  <MetricCard
+                    label="Aktive Kontakte"
+                    value={realContacts.length > 0 ? `${activeContacts}/${realContacts.length}` : "0"}
+                    detail={realContacts.length === 0 ? "Noch keine eigenen Kontakte." : "Bestätigte Personen mit klarer Rolle."}
+                    tone={realContacts.length > 0 && activeContacts === realContacts.length ? "positive" : "warning"}
+                  />
                 </section>
 
                 <section className="dashboard-grid">
                   <article className="panel large">
                     <div className="panel-head">
-                      <h3>Operative Prioritäten</h3>
+                      <h3>Heute wichtig</h3>
                       <StatusPill tone={readinessScore >= 75 ? "positive" : "warning"}>
                         {readinessScore >= 75 ? "Stabil" : "Aufmerksamkeit erforderlich"}
                       </StatusPill>
@@ -1287,17 +1409,27 @@ export default function HomePage() {
                       <article className="priority-card">
                         <span>Kritischster Punkt</span>
                         <strong>{nextChecklistItem?.title ?? "Keine offenen Kernaufgaben"}</strong>
-                        <p>Die Checkliste steuert den Reifegrad des gesamten Arbeitsbereichs.</p>
+                        <p>Der nächste offene Punkt für deinen Vorsorge-Stand.</p>
                       </article>
                       <article className="priority-card">
                         <span>Freigabe-Queue</span>
                         <strong>{activeRequests} aktive Vorgänge</strong>
-                        <p>Neue oder laufende Vorgänge sollten täglich gesichtet und triagiert werden.</p>
+                        <p>Neue oder laufende Vorgänge auf einen Blick.</p>
                       </article>
                       <article className="priority-card">
-                        <span>Bestandsqualität</span>
-                        <strong>{assets.length} Assets dokumentiert</strong>
-                        <p>Freigaben sind nur belastbar, wenn Asset-Bestand und Verantwortlichkeiten sauber gepflegt bleiben.</p>
+                        <span>Automatisierung</span>
+                        <strong>{automatedCancellations} vorbereitet</strong>
+                        <p>{automatedCancellations === 0 ? "Noch keine Kündigung ist automatisierbar vorbereitet." : "Kündigungsschreiben oder Automatiken sind vorgemerkt."}</p>
+                      </article>
+                      <article className="priority-card">
+                        <span>Kontakte</span>
+                        <strong>{realContacts.length} Kontakte angelegt</strong>
+                        <p>{realContacts.length === 0 ? "Noch keine eigenen Kontakte hinterlegt." : "Vertrauenspersonen und Rollen sind erfasst."}</p>
+                      </article>
+                      <article className="priority-card">
+                        <span>Tresor</span>
+                        <strong>{realVaultItems.length} Einträge gespeichert</strong>
+                        <p>{realVaultItems.length === 0 ? "Noch keine eigenen Tresor-Einträge gespeichert." : "Dokumente und Hinweise sind auffindbar."}</p>
                       </article>
                     </div>
                   </article>
@@ -1308,14 +1440,17 @@ export default function HomePage() {
                       <StatusPill tone="neutral">Auditfähig</StatusPill>
                     </div>
                     <div className="activity-list">
-                      {activities.length === 0 ? (
+                      {realActivities.length === 0 ? (
                         <EmptyState title="Noch keine Aktivität" copy="Sobald Daten geändert werden, erscheint hier die jüngste Historie." />
                       ) : (
-                        activities.map((activity) => (
-                          <div key={activity.id} className="activity-item">
+                        realActivities.map((activity) => (
+                          <div key={activity.id} className={`activity-item${isExampleRecord(activity) ? " is-example" : ""}`}>
                             <div className={`activity-dot ${activity.kind}`}></div>
                             <div>
-                              <strong>{activity.title}</strong>
+                              <strong>
+                                {activity.title}
+                                {isExampleRecord(activity) ? <ExampleBadge /> : null}
+                              </strong>
                               <p>{activity.detail}</p>
                               <span>{activity.createdAt}</span>
                             </div>
@@ -1329,45 +1464,69 @@ export default function HomePage() {
                 <section className="dashboard-grid lower">
                   <article className="panel">
                     <div className="panel-head">
-                      <h3>Aktive Assets</h3>
+                      <h3>Deine Verträge</h3>
                     </div>
                     <div className="list-stack">
-                      {assets.slice(0, 4).map((asset) => (
-                        <div key={asset.id} className="list-row">
-                          <div>
-                            <strong>{asset.name}</strong>
-                            <p>
-                              {asset.provider} · {asset.contactName}
-                            </p>
+                      {realAssets.length === 0 ? (
+                        <EmptyState
+                          title="Noch keine Verträge"
+                          copy="Lege den ersten laufenden Vertrag an und entscheide, was im Ernstfall passieren soll."
+                          action={
+                            <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("assets"))} type="button">
+                              Verträge öffnen
+                            </button>
+                          }
+                        />
+                      ) : (
+                        realAssets.slice(0, 4).map((asset) => (
+                          <div key={asset.id} className="list-row">
+                            <div>
+                              <strong>{asset.name}</strong>
+                              <p>
+                                {asset.provider} · {asset.contactName}
+                              </p>
+                            </div>
+                            <div className="list-row-side">
+                              <StatusPill tone={asset.cancellationStatus === "Bereit" ? "positive" : "warning"}>{asset.cancellationStatus}</StatusPill>
+                              <span>{asset.actionGoal}</span>
+                            </div>
                           </div>
-                          <div className="list-row-side">
-                            <StatusPill>{asset.status}</StatusPill>
-                            <span>{asset.accessLevel}</span>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </article>
 
                   <article className="panel">
                     <div className="panel-head">
-                      <h3>Freigabe-Queue</h3>
+                      <h3>Deine Anfragen</h3>
                     </div>
                     <div className="list-stack">
-                      {filteredRequests.slice(0, 4).map((request) => (
-                        <div key={request.id} className="list-row">
-                          <div>
-                            <strong>{request.label}</strong>
-                            <p>
-                              {request.requesterName} · {request.scope}
-                            </p>
+                      {realRequests.length === 0 ? (
+                        <EmptyState
+                          title="Noch keine Anfragen"
+                          copy="Sobald jemand Zugriff oder Informationen anfragt, erscheint der Vorgang hier."
+                          action={
+                            <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("requests"))} type="button">
+                              Anfragen öffnen
+                            </button>
+                          }
+                        />
+                      ) : (
+                        realRequests.slice(0, 4).map((request) => (
+                          <div key={request.id} className="list-row">
+                            <div>
+                              <strong>{request.label}</strong>
+                              <p>
+                                {request.requesterName} · {request.scope}
+                              </p>
+                            </div>
+                            <div className="list-row-side">
+                              <StatusPill>{request.status}</StatusPill>
+                              <span>{requestPriority(request)}</span>
+                            </div>
                           </div>
-                          <div className="list-row-side">
-                            <StatusPill>{request.status}</StatusPill>
-                            <span>{requestPriority(request)}</span>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </article>
                 </section>
@@ -1378,20 +1537,20 @@ export default function HomePage() {
               <section className="section-grid">
                 <article className="panel sticky">
                   <SectionHeader
-                    eyebrow="Asset Register"
-                    title="Digitale Vermögenswerte strukturiert erfassen"
-                    copy="Jedes Asset erhält Verantwortlichkeit, Zugriffsebene und eine belastbare Freigaberegel."
+                    eyebrow="Neuer Vertrag"
+                    title="Kündigungsplan anlegen"
+                    copy="Was läuft weiter, was kostet es und was soll nach Ableben automatisch passieren?"
                   />
                   <form className="stack-form" onSubmit={submitAsset}>
                     <label>
-                      Asset-Bezeichnung
+                      Vertrag / Verpflichtung
                       <input
                         value={assetForm.name}
                         onChange={(event) => {
                           setAssetForm((prev) => ({ ...prev, name: event.target.value }));
                           if (assetErrors.name) setAssetErrors((prev) => ({ ...prev, name: "" }));
                         }}
-                        placeholder="z. B. Primäres E-Mail-Konto"
+                        placeholder="z. B. Mobilfunkvertrag, Webhosting, Versicherung"
                       />
                       <FieldError message={assetErrors.name} />
                     </label>
@@ -1411,20 +1570,87 @@ export default function HomePage() {
                       <label>
                         Kategorie
                         <select value={assetForm.category} onChange={(event) => setAssetForm((prev) => ({ ...prev, category: event.target.value }))}>
-                          <option>Kommunikation</option>
+                          <option>Laufender Vertrag</option>
+                          <option>Abo</option>
+                          <option>Versicherung</option>
                           <option>Finanzen</option>
-                          <option>Geräte</option>
+                          <option>Kommunikation</option>
                           <option>Geschäftsbetrieb</option>
-                          <option>Persönlich</option>
+                          <option>Gerät / Zugang</option>
                         </select>
                       </label>
                       <label>
-                        Zugriffsebene
+                        Freigabe an
                         <select value={assetForm.accessLevel} onChange={(event) => setAssetForm((prev) => ({ ...prev, accessLevel: event.target.value }))}>
                           <option>Nur Executor</option>
                           <option>Executor + Rechtsbeistand</option>
+                          <option>Executor + Verwalter</option>
                           <option>Familie nach Prüfung</option>
                           <option>Continuity-Team</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="form-split">
+                      <label>
+                        Kundennummer / Vertragsnummer
+                        <input
+                          value={assetForm.customerReference}
+                          onChange={(event) => setAssetForm((prev) => ({ ...prev, customerReference: event.target.value }))}
+                          placeholder="z. B. KD-123456"
+                        />
+                      </label>
+                      <label>
+                        Kosten
+                        <input
+                          value={assetForm.costLabel}
+                          onChange={(event) => {
+                            setAssetForm((prev) => ({ ...prev, costLabel: event.target.value }));
+                            if (assetErrors.costLabel) setAssetErrors((prev) => ({ ...prev, costLabel: "" }));
+                          }}
+                          placeholder="z. B. 19,99 EUR / Monat"
+                        />
+                        <FieldError message={assetErrors.costLabel} />
+                      </label>
+                    </div>
+                    <div className="form-split">
+                      <label>
+                        Zahlungsart
+                        <select value={assetForm.paymentMethod} onChange={(event) => setAssetForm((prev) => ({ ...prev, paymentMethod: event.target.value }))}>
+                          <option>SEPA-Lastschrift</option>
+                          <option>Kreditkarte</option>
+                          <option>PayPal</option>
+                          <option>Rechnung</option>
+                          <option>Unbekannt</option>
+                        </select>
+                      </label>
+                      <label>
+                        Ziel im Ernstfall
+                        <select value={assetForm.actionGoal} onChange={(event) => setAssetForm((prev) => ({ ...prev, actionGoal: event.target.value }))}>
+                          <option>Kündigen</option>
+                          <option>Übertragen</option>
+                          <option>Informieren</option>
+                          <option>Prüfen</option>
+                          <option>Behalten</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="form-split">
+                      <label>
+                        Automatisierung
+                        <select value={assetForm.automationLevel} onChange={(event) => setAssetForm((prev) => ({ ...prev, automationLevel: event.target.value }))}>
+                          <option>Automatisch kündbar</option>
+                          <option>Kündigungsschreiben vorbereitet</option>
+                          <option>Manuelle Prüfung</option>
+                          <option>Nicht automatisierbar</option>
+                        </select>
+                      </label>
+                      <label>
+                        Kündigungsstatus
+                        <select value={assetForm.cancellationStatus} onChange={(event) => setAssetForm((prev) => ({ ...prev, cancellationStatus: event.target.value }))}>
+                          <option>Angaben fehlen</option>
+                          <option>Bereit</option>
+                          <option>Ausgelöst</option>
+                          <option>Bestätigt</option>
                         </select>
                       </label>
                     </div>
@@ -1436,7 +1662,7 @@ export default function HomePage() {
                           setAssetForm((prev) => ({ ...prev, contactName: event.target.value }));
                           if (assetErrors.contactName) setAssetErrors((prev) => ({ ...prev, contactName: "" }));
                         }}
-                        placeholder="z. B. Anna Weber"
+                        placeholder="z. B. Nachlassverwalterin oder Vertrauensperson"
                       />
                       <FieldError message={assetErrors.contactName} />
                     </label>
@@ -1448,53 +1674,63 @@ export default function HomePage() {
                           setAssetForm((prev) => ({ ...prev, rule: event.target.value }));
                           if (assetErrors.rule) setAssetErrors((prev) => ({ ...prev, rule: "" }));
                         }}
-                        placeholder="Beschreiben Sie Nachweise, Prüfschritte und Grenzen der Freigabe."
+                        placeholder="Welche Nachweise braucht es? Darf direkt gekündigt werden oder muss jemand prüfen?"
                       />
                       <FieldError message={assetErrors.rule} />
                     </label>
                     <button className="button primary" type="submit">
-                      Asset anlegen
+                      Kündigungsplan speichern
                     </button>
                   </form>
                 </article>
 
                 <article className="panel">
                   <SectionHeader
-                    eyebrow="Asset Bestand"
-                    title="Register mit operativem Kontext"
-                    copy="Suche filtert direkt nach System, Kategorie, Zuständigkeit und Freigaberegel."
-                    actions={<StatusPill tone={reviewDueAssets > 0 ? "critical" : "positive"}>{reviewDueAssets > 0 ? `${reviewDueAssets} Reviews fällig` : "Bestand aktuell"}</StatusPill>}
+                    eyebrow="Bestand"
+                    title="Deine Verträge"
+                    copy="Laufende Kosten, Anbieter und Entscheidungen für den Ernstfall."
+                    actions={<StatusPill tone={missingCancellationInfo > 0 ? "critical" : "positive"}>{missingCancellationInfo > 0 ? `${missingCancellationInfo} Angaben fehlen` : "Kündigungsfähig"}</StatusPill>}
                   />
                   {filteredAssets.length === 0 ? (
-                    <EmptyState title="Keine Assets gefunden" copy="Passen Sie die Suche an oder legen Sie ein neues Asset an." />
+                    <EmptyState title="Keine Verträge gefunden" copy="Passen Sie die Suche an oder legen Sie einen neuen Kündigungsplan an." />
                   ) : (
                     <div className="table-shell">
                       <table>
                         <thead>
                           <tr>
-                            <th>Asset</th>
+                            <th>Vertrag</th>
                             <th>Anbieter</th>
-                            <th>Zuständigkeit</th>
-                            <th>Freigaberegel</th>
-                            <th>Status</th>
+                            <th>Kosten</th>
+                            <th>Ernstfall-Plan</th>
+                            <th>Kündigung</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredAssets.map((asset) => (
-                            <tr key={asset.id}>
+                            <tr key={asset.id} className={isExampleRecord(asset) ? "is-example" : ""}>
                               <td>
-                                <strong>{asset.name}</strong>
+                                <strong>
+                                  {asset.name}
+                                  {isExampleRecord(asset) ? <ExampleBadge /> : null}
+                                </strong>
                                 <span>{asset.category}</span>
                               </td>
                               <td>{asset.provider}</td>
                               <td>
-                                <strong>{asset.contactName}</strong>
-                                <span>{asset.accessLevel}</span>
+                                <strong>{asset.costLabel}</strong>
+                                <span>{asset.paymentMethod}</span>
                               </td>
-                              <td>{asset.rule}</td>
                               <td>
-                                <StatusPill>{asset.status}</StatusPill>
-                                <span>{asset.lastReview}</span>
+                                <strong>{asset.actionGoal}</strong>
+                                <span>{asset.contactName} · {asset.accessLevel}</span>
+                                <span>{asset.rule}</span>
+                              </td>
+                              <td>
+                                <StatusPill tone={asset.cancellationStatus === "Bereit" ? "positive" : asset.cancellationStatus === "Angaben fehlen" ? "critical" : "warning"}>
+                                  {asset.cancellationStatus}
+                                </StatusPill>
+                                <span>{asset.automationLevel}</span>
+                                <span>{asset.customerReference || "Keine Kundennummer"}</span>
                               </td>
                             </tr>
                           ))}
@@ -1510,9 +1746,9 @@ export default function HomePage() {
               <section className="section-grid">
                 <article className="panel sticky">
                   <SectionHeader
-                    eyebrow="Sicherer Tresor"
-                    title="Dokumente mit Zielgruppe und Aufbewahrung führen"
-                    copy="Der Tresor dokumentiert Sichtbarkeit, Haltedauer und den Zweck des Inhalts."
+                    eyebrow="Neuer Eintrag"
+                    title="In den Tresor legen"
+                    copy="Speichere Hinweise oder Dokumentpakete mit klarer Freigabe."
                   />
                   <form className="stack-form" onSubmit={submitVaultItem}>
                     <label>
@@ -1576,19 +1812,22 @@ export default function HomePage() {
 
                 <article className="panel">
                   <SectionHeader
-                    eyebrow="Tresorbestand"
-                    title="Versionierte Informationspakete"
-                    copy="Geeignet für rechtliche Dokumente, persönliche Nachrichten und betriebliche Übergaben."
+                    eyebrow="Gespeichert"
+                    title="Dein Tresor"
+                    copy="Alles, was im Ernstfall schnell gefunden werden soll."
                   />
                   {filteredVaultItems.length === 0 ? (
                     <EmptyState title="Keine Tresoreinträge gefunden" copy="Passen Sie die Suche an oder legen Sie ein neues Paket an." />
                   ) : (
                     <div className="card-grid">
                       {filteredVaultItems.map((item) => (
-                        <article key={item.id} className="document-card">
+                        <article key={item.id} className={`document-card${isExampleRecord(item) ? " is-example" : ""}`}>
                           <div className="panel-head">
                             <div>
-                              <h3>{item.title}</h3>
+                              <h3>
+                                {item.title}
+                                {isExampleRecord(item) ? <ExampleBadge /> : null}
+                              </h3>
                               <p>{item.category}</p>
                             </div>
                             <StatusPill>{item.status}</StatusPill>
@@ -1611,9 +1850,9 @@ export default function HomePage() {
               <section className="section-grid">
                 <article className="panel sticky">
                   <SectionHeader
-                    eyebrow="Rollenmodell"
-                    title="Vertrauenspersonen mit Reichweite und Erwartung pflegen"
-                    copy="Kontakte werden nach Rolle, Reaktionsfähigkeit und Zuständigkeitsbereich geführt."
+                    eyebrow="Neuer Kontakt"
+                    title="Kontakt hinzufügen"
+                    copy="Wer soll helfen, prüfen oder benachrichtigt werden?"
                   />
                   <form className="stack-form" onSubmit={submitContact}>
                     <label>
@@ -1686,7 +1925,7 @@ export default function HomePage() {
                           setContactForm((prev) => ({ ...prev, scope: event.target.value }));
                           if (contactErrors.scope) setContactErrors((prev) => ({ ...prev, scope: "" }));
                         }}
-                        placeholder="Welche Assets, Dokumente oder Aufgaben umfasst diese Rolle?"
+                        placeholder="Welche Verträge, Dokumente oder Aufgaben umfasst diese Rolle?"
                       />
                       <FieldError message={contactErrors.scope} />
                     </label>
@@ -1698,9 +1937,9 @@ export default function HomePage() {
 
                 <article className="panel">
                   <SectionHeader
-                    eyebrow="Kontaktliste"
-                    title="Bestätigte Rollen und ausstehende Freigaben"
-                    copy="Die Übersicht fokussiert auf Reaktionsfähigkeit, Reichweite und Verifikationsstand."
+                    eyebrow="Personen"
+                    title="Deine Kontakte"
+                    copy="Vertrauenspersonen, Rollen und Zuständigkeiten."
                     actions={
                       <StatusPill tone={activeContacts === contacts.length ? "positive" : "warning"}>
                         {`${activeContacts} aktiv`}
@@ -1712,11 +1951,14 @@ export default function HomePage() {
                   ) : (
                     <div className="card-grid">
                       {filteredContacts.map((contact) => (
-                        <article key={contact.id} className="contact-card">
+                        <article key={contact.id} className={`contact-card${isExampleRecord(contact) ? " is-example" : ""}`}>
                           <div className="contact-head">
                             <div className="avatar small">{initialsFromName(contact.name)}</div>
                             <div>
-                              <h3>{contact.name}</h3>
+                              <h3>
+                                {contact.name}
+                                {isExampleRecord(contact) ? <ExampleBadge /> : null}
+                              </h3>
                               <p>{contact.relation}</p>
                             </div>
                           </div>
@@ -1755,9 +1997,9 @@ export default function HomePage() {
               <section className="section-grid">
                 <article className="panel sticky">
                   <SectionHeader
-                    eyebrow="Freigabeprozess"
-                    title="Anfrage vollständig anlegen"
-                    copy="Jeder Vorgang startet mit Antragsteller, Nachweisstatus und einem klaren Umfang."
+                    eyebrow="Neue Anfrage"
+                    title="Anfrage erfassen"
+                    copy="Wer fragt an, was wird gebraucht und welche Nachweise liegen vor?"
                   />
                   <form className="stack-form" onSubmit={submitRequest}>
                     <label>
@@ -1818,9 +2060,9 @@ export default function HomePage() {
 
                 <article className="panel">
                   <SectionHeader
-                    eyebrow="Prüf-Queue"
-                    title="Vorgänge mit klarer Triage"
-                    copy="Statuswechsel stehen nur dort zur Verfügung, wo sie fachlich Sinn ergeben."
+                    eyebrow="Queue"
+                    title="Deine Anfragen"
+                    copy="Prüfe Vorgänge, stelle Rückfragen und halte Entscheidungen fest."
                   />
                   <div className="queue-summary">
                     <StatusPill tone="warning">{`${requests.filter((item) => item.status === "Neu eingegangen").length} neu`}</StatusPill>
@@ -1833,10 +2075,13 @@ export default function HomePage() {
                   ) : (
                     <div className="request-stack">
                       {filteredRequests.map((request) => (
-                        <article key={request.id} className="request-card">
+                        <article key={request.id} className={`request-card${isExampleRecord(request) ? " is-example" : ""}`}>
                           <div className="panel-head">
                             <div>
-                              <h3>{request.label}</h3>
+                              <h3>
+                                {request.label}
+                                {isExampleRecord(request) ? <ExampleBadge /> : null}
+                              </h3>
                               <p>
                                 {request.requesterName} · {request.relation}
                               </p>
@@ -1892,39 +2137,141 @@ export default function HomePage() {
               </section>
             )}
 
-            {currentView === "workflow" && (
+            {currentView === "settlement" && (
               <section className="section-grid">
                 <article className="panel sticky">
                   <SectionHeader
-                    eyebrow="Bereitschaftsmodell"
-                    title="Schrittfolge für einen belastbaren Arbeitsbereich"
-                    copy="Die Plattform zeigt nicht nur Daten, sondern macht den Reifegrad der Nachlassakte transparent."
+                    eyebrow="Ernstfall"
+                    title="Abwicklung starten"
+                    copy="Diese Ansicht ist für die spätere verwaltende Stelle gedacht: Nachweis prüfen, Kündigungen auslösen, Rückmeldungen dokumentieren."
                   />
                   <div className="workflow-steps">
                     <div className="workflow-step">
-                      <strong>1. Bestand konsolidieren</strong>
-                      <p>Assets erhalten Verantwortliche, Zugriffsebenen und aktuelle Review-Daten.</p>
+                      <strong>1. Nachweis prüfen</strong>
+                      <p>Sterbeurkunde oder gleichwertigen Nachweis aufnehmen und Anfrage formal freigeben.</p>
                     </div>
                     <div className="workflow-step">
-                      <strong>2. Rollen absichern</strong>
-                      <p>Vertrauenspersonen werden mit Reaktionszeit und fachlicher Reichweite verifiziert.</p>
+                      <strong>2. Kündigungen auslösen</strong>
+                      <p>Kündigungsbereite Verträge automatisch oder mit vorbereitetem Schreiben an Anbieter senden.</p>
                     </div>
                     <div className="workflow-step">
-                      <strong>3. Tresor strukturieren</strong>
-                      <p>Rechtliche, persönliche und betriebliche Pakete bleiben mit Freigabekontext dokumentiert.</p>
+                      <strong>3. Bestätigungen sichern</strong>
+                      <p>Rückmeldungen, Kündigungsdaten und offene Rückfragen je Anbieter dokumentieren.</p>
                     </div>
                     <div className="workflow-step">
-                      <strong>4. Freigaben kontrollieren</strong>
-                      <p>Anfragen lassen sich mit Statuswechseln, Rückfragen und Historie operativ steuern.</p>
+                      <strong>4. Angehörige entlasten</strong>
+                      <p>Nur Ausnahmefälle, fehlende Angaben oder notwendige Freigaben werden an Kontakte weitergegeben.</p>
                     </div>
                   </div>
                 </article>
 
                 <article className="panel">
                   <SectionHeader
-                    eyebrow="Checkliste"
-                    title="Offene Maßnahmen mit Auswirkung auf die Bereitschaft"
-                    copy="Jede Statusänderung wird serverseitig in SQLite übernommen und im Aktivitätsprotokoll dokumentiert."
+                    eyebrow="Kündigungsqueue"
+                    title="Was erledigt werden kann"
+                    copy="Hier zählt nur, was im Ernstfall Rechnungen, Abbuchungen oder laufende Pflichten stoppt."
+                    actions={<StatusPill tone={readyCancellations > 0 ? "positive" : "warning"}>{`${readyCancellations} bereit`}</StatusPill>}
+                  />
+                  <div className="queue-summary">
+                    <StatusPill tone="positive">{`${readyCancellations} bereit`}</StatusPill>
+                    <StatusPill tone="critical">{`${missingCancellationInfo} Angaben fehlen`}</StatusPill>
+                    <StatusPill tone="neutral">{`${automatedCancellations} automatisiert vorbereitet`}</StatusPill>
+                    <StatusPill tone="warning">{`${activeRequests} Nachweise offen`}</StatusPill>
+                  </div>
+
+                  {cancellableContracts.length === 0 ? (
+                    <EmptyState
+                      title="Noch keine kündigungsrelevanten Verträge"
+                      copy="Lege unter Verträge einen Eintrag mit Ziel 'Kündigen' an. Danach erscheint er hier in der Abwicklung."
+                      action={
+                        <button className="button ghost small" onClick={() => startTransition(() => setCurrentView("assets"))} type="button">
+                          Vertrag anlegen
+                        </button>
+                      }
+                    />
+                  ) : (
+                    <div className="request-stack">
+                      {cancellableContracts.map((asset) => (
+                        <article key={asset.id} className={`request-card settlement-card${isExampleRecord(asset) ? " is-example" : ""}`}>
+                          <div className="panel-head">
+                            <div>
+                              <h3>
+                                {asset.name}
+                                {isExampleRecord(asset) ? <ExampleBadge /> : null}
+                              </h3>
+                              <p>{asset.provider} · {asset.costLabel}</p>
+                            </div>
+                            <StatusPill tone={asset.cancellationStatus === "Bereit" ? "positive" : asset.cancellationStatus === "Angaben fehlen" ? "critical" : "warning"}>
+                              {asset.cancellationStatus}
+                            </StatusPill>
+                          </div>
+                          <div className="request-grid">
+                            <div>
+                              <span>Kundennummer</span>
+                              <strong>{asset.customerReference || "Noch nicht hinterlegt"}</strong>
+                            </div>
+                            <div>
+                              <span>Zahlungsart</span>
+                              <strong>{asset.paymentMethod}</strong>
+                            </div>
+                            <div>
+                              <span>Automatisierung</span>
+                              <strong>{asset.automationLevel}</strong>
+                            </div>
+                            <div>
+                              <span>Verantwortlich</span>
+                              <strong>{asset.contactName}</strong>
+                            </div>
+                          </div>
+                          <div className="request-note">
+                            <strong>Nächster Schritt</strong>
+                            <p>
+                              {asset.cancellationStatus === "Bereit"
+                                ? "Nach bestätigtem Nachweis kann die Kündigung ausgelöst und die Anbieterantwort dokumentiert werden."
+                                : "Vor dem Ernstfall fehlen noch Angaben, damit Angehörige später nicht recherchieren müssen."}
+                            </p>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </section>
+            )}
+
+            {currentView === "workflow" && (
+              <section className="section-grid">
+                <article className="panel sticky">
+                  <SectionHeader
+                    eyebrow="Ablauf"
+                    title="Dein Plan"
+                    copy="Vier einfache Schritte bringen Ordnung in den Arbeitsbereich."
+                  />
+                  <div className="workflow-steps">
+                    <div className="workflow-step">
+                      <strong>1. Verträge kündigungsfähig machen</strong>
+                      <p>Anbieter, Kundennummern, Kosten und Ziel im Ernstfall werden vollständig erfasst.</p>
+                    </div>
+                    <div className="workflow-step">
+                      <strong>2. Rollen absichern</strong>
+                      <p>Vertrauenspersonen und Verwalter werden mit Reaktionszeit und fachlicher Reichweite verifiziert.</p>
+                    </div>
+                    <div className="workflow-step">
+                      <strong>3. Tresor strukturieren</strong>
+                      <p>Sterbeurkunde, Vollmachten, Vertragsunterlagen und Vorlagen bleiben auffindbar.</p>
+                    </div>
+                    <div className="workflow-step">
+                      <strong>4. Abwicklung kontrollieren</strong>
+                      <p>Kündigungen, Rückfragen und Anbieterbestätigungen lassen sich operativ steuern.</p>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="panel">
+                  <SectionHeader
+                    eyebrow="Aufgaben"
+                    title="Deine Checkliste"
+                    copy="Klicke eine Aufgabe, um ihren Status weiterzuschalten."
                   />
                   <div className="checklist">
                     {checklist.map((item) => (
@@ -1949,9 +2296,9 @@ export default function HomePage() {
               <section className="section-grid">
                 <article className="panel sticky">
                   <SectionHeader
-                    eyebrow="Arbeitsbereich"
-                    title="Lokale Nutzung steuern"
-                    copy="Sitzung, Startansicht und Datenexport bleiben ohne externe Dienste vollständig lokal kontrollierbar."
+                    eyebrow="Einstellungen"
+                    title="Dein Arbeitsbereich"
+                    copy="Startansicht, Sitzung und Export."
                   />
                   <form
                     className="stack-form"
@@ -1995,26 +2342,26 @@ export default function HomePage() {
 
                 <article className="panel">
                   <SectionHeader
-                    eyebrow="Datenqualität"
-                    title="Release-Readiness im lokalen Betrieb"
-                    copy="Diese Installation bleibt lokal-first und konzentriert sich auf saubere Freigabe- und Dokumentationsprozesse."
+                    eyebrow="Daten"
+                    title="Lokaler Stand"
+                    copy="Was gespeichert ist und wie du es sichern kannst."
                   />
                   <div className="settings-grid">
                     <article className="settings-card">
                       <strong>Persistenz</strong>
-                      <p>SQLite hält den Arbeitsdatenbestand lokal im Projekt. Sitzung und Startansicht bleiben im Browser gespeichert.</p>
+                      <p>Deine Arbeitsdaten liegen lokal in SQLite. Sitzung und Startansicht bleiben im Browser.</p>
                     </article>
                     <article className="settings-card">
                       <strong>Export</strong>
-                      <p>Ein vollständiger JSON-Export für Übergabe, Archivierung oder lokale Sicherung ist jederzeit verfügbar.</p>
+                      <p>Erstelle jederzeit eine JSON-Sicherung deines Arbeitsbereichs.</p>
                     </article>
                     <article className="settings-card">
                       <strong>Build-Status</strong>
-                      <p>Die Anwendung ist für einen produktnahen lokalen v1-Einsatz vorbereitet und auf Build-Stabilität ausgelegt.</p>
+                      <p>Die lokale App ist gebaut, geprüft und bereit für die Demo-Nutzung.</p>
                     </article>
                     <article className="settings-card">
                       <strong>Aktueller Datenstand</strong>
-                      <p>Letzte Synchronisierung: {lastSyncedAt}. Alle Änderungen werden direkt in den lokalen APIs verarbeitet.</p>
+                      <p>Zuletzt synchronisiert: {lastSyncedAt}.</p>
                     </article>
                   </div>
                 </article>
